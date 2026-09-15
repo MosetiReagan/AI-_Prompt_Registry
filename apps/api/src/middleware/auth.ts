@@ -52,10 +52,29 @@ export function authMiddleware(storage: IRegistryStorage) {
       if (!apiKey) {
         return reply.status(401).send({
           error: "Unauthorized",
-          message: "Invalid or expired API key",
+          message: "Invalid API key",
           code: "INVALID_API_KEY"
         });
       }
+
+      // Enforce API key expiration
+      if (apiKey.expiresAt) {
+        const expiryTime = new Date(apiKey.expiresAt).getTime();
+        if (expiryTime < Date.now()) {
+          return reply.status(401).send({
+            error: "Unauthorized",
+            message: "API key has expired",
+            code: "EXPIRED_API_KEY"
+          });
+        }
+      }
+
+      // Update lastUsedAt timestamp asynchronously
+      const nowIso = new Date().toISOString();
+      apiKey.lastUsedAt = nowIso;
+      storage.updateApiKeyLastUsed(apiKey.id, nowIso).catch((err) => {
+        req.log?.warn?.(`Failed to update lastUsedAt for API key ${apiKey.id}: ${err}`);
+      });
 
       req.identity = {
         id: apiKey.id,

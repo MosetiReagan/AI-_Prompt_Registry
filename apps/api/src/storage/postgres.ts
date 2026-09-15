@@ -672,6 +672,10 @@ export class PostgresStorage implements IRegistryStorage {
     };
   }
 
+  async updateApiKeyLastUsed(id: string, lastUsedAt: string): Promise<void> {
+    await this.query(`UPDATE api_keys SET last_used_at = $1 WHERE id = $2`, [lastUsedAt, id]);
+  }
+
   async listApiKeys(orgId: string): Promise<ApiKey[]> {
     const res = await this.query(`SELECT * FROM api_keys WHERE organization_id = $1 ORDER BY created_at DESC`, [orgId]);
     return res.rows.map((r: any) => ({

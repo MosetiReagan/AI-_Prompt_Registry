@@ -382,6 +382,13 @@ export class MemoryStorage implements IRegistryStorage {
     return key ? clone(key) : null;
   }
 
+  async updateApiKeyLastUsed(id: string, lastUsedAt: string): Promise<void> {
+    const key = this.apiKeys.get(id);
+    if (key) {
+      key.lastUsedAt = lastUsedAt;
+    }
+  }
+
   async listApiKeys(orgId: string): Promise<ApiKey[]> {
     const list: ApiKey[] = [];
     for (const k of this.apiKeys.values()) {

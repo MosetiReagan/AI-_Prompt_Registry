@@ -63,6 +63,7 @@ export interface IRegistryStorage {
   // API Keys
   createApiKey(apiKey: ApiKey): Promise<ApiKey>;
   findApiKeyByHash(hash: string): Promise<ApiKey | null>;
+  updateApiKeyLastUsed(id: string, lastUsedAt: string): Promise<void>;
   listApiKeys(orgId: string): Promise<ApiKey[]>;
   deleteApiKey(orgId: string, id: string): Promise<boolean>;
 

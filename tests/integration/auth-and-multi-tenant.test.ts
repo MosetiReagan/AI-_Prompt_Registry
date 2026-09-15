@@ -145,4 +145,59 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     expect(leakRes.json().code).toBe("POLICY_VIOLATION");
     expect(leakRes.json().violations.some((v: any) => v.rule === "forbidSecrets")).toBe(true);
   });
+
+  it("enforces API key expiration and updates lastUsedAt", async () => {
+    // 1. Create an already-expired API key
+    const expiredRawKey = "apr_live_expired_test_key_123";
+    const pastDate = new Date(Date.now() - 3600000).toISOString(); // 1 hour ago
+    await storage.createApiKey({
+      id: "key_expired",
+      organizationId: "org-a",
+      name: "Expired Key",
+      keyHash: hashApiKey(expiredRawKey),
+      keyPrefix: "apr_live_exp",
+      scopes: ["read"],
+      expiresAt: pastDate,
+      createdAt: new Date(Date.now() - 7200000).toISOString(),
+      lastUsedAt: null
+    });
+
+    // Request with expired key must be rejected with 401 EXPIRED_API_KEY
+    const expiredRes = await app.inject({
+      method: "GET",
+      url: "/v1/prompts",
+      headers: { authorization: `Bearer ${expiredRawKey}` }
+    });
+    expect(expiredRes.statusCode).toBe(401);
+    expect(expiredRes.json().code).toBe("EXPIRED_API_KEY");
+
+    // 2. Create valid active key with null lastUsedAt
+    const validRawKey = "apr_live_active_test_key_456";
+    const futureDate = new Date(Date.now() + 86400000).toISOString(); // 1 day in future
+    const activeKey = await storage.createApiKey({
+      id: "key_active_usage",
+      organizationId: "org-a",
+      name: "Active Key",
+      keyHash: hashApiKey(validRawKey),
+      keyPrefix: "apr_live_act",
+      scopes: ["read"],
+      expiresAt: futureDate,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null
+    });
+    expect(activeKey.lastUsedAt).toBeNull();
+
+    // Authenticate with active key
+    const validRes = await app.inject({
+      method: "GET",
+      url: "/v1/prompts",
+      headers: { authorization: `Bearer ${validRawKey}` }
+    });
+    expect(validRes.statusCode).toBe(200);
+
+    // Verify lastUsedAt was updated
+    const retrievedKey = await storage.findApiKeyByHash(hashApiKey(validRawKey));
+    expect(retrievedKey?.lastUsedAt).toBeDefined();
+    expect(retrievedKey?.lastUsedAt).not.toBeNull();
+  });
 });
