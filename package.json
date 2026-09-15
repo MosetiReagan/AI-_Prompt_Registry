@@ -3,6 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "description": "Open-source infrastructure for versioning, testing, deploying, and managing AI prompts",
+  "author": {
+    "name": "Reagan Moseti",
+    "url": "https://www.linkedin.com/in/reagan-moseti-1a8380238/"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "test": "vitest run",
@@ -14,6 +18,7 @@
     "cli": "pnpm --filter @ai-prompt-registry/cli cli"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

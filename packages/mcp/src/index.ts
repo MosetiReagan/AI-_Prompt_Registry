@@ -1,241 +1,189 @@
 #!/usr/bin/env node
-import * as readline from "readline";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import { PromptRegistry } from "@ai-prompt-registry/sdk";
-import { renderPrompt, computePromptDiff } from "@ai-prompt-registry/core";
 
 const registryUrl = process.env.PROMPT_REGISTRY_URL || "http://localhost:3000";
 const registryApiKey = process.env.PROMPT_REGISTRY_KEY;
 
-const client = new PromptRegistry({
+const defaultClient = new PromptRegistry({
   baseUrl: registryUrl,
   apiKey: registryApiKey
 });
 
-const TOOLS = [
-  {
-    name: "prompt_list",
-    description: "List all prompts registered in AI Prompt Registry",
-    inputSchema: {
-      type: "object",
-      properties: {
-        search: { type: "string", description: "Search query for prompt name or description" },
-        tag: { type: "string", description: "Filter by tag" }
-      }
-    }
-  },
-  {
-    name: "prompt_get",
-    description: "Retrieve a prompt and its resolved version by environment (e.g. production) or alias",
-    inputSchema: {
-      type: "object",
-      required: ["promptName"],
-      properties: {
-        promptName: { type: "string", description: "The unique name/slug of the prompt" },
-        environmentOrVersion: {
-          type: "string",
-          description: "Target environment (e.g. 'production', 'staging') or exact semver version (e.g. '1.0.0')",
-          default: "production"
-        }
-      }
-    }
-  },
-  {
-    name: "prompt_get_version",
-    description: "Retrieve an exact immutable version of a prompt",
-    inputSchema: {
-      type: "object",
-      required: ["promptName", "version"],
-      properties: {
-        promptName: { type: "string", description: "The unique name of the prompt" },
-        version: { type: "string", description: "Exact semver version, e.g. '1.2.0'" }
-      }
-    }
-  },
-  {
-    name: "prompt_render",
-    description: "Safely render a prompt with variables without executing arbitrary code",
-    inputSchema: {
-      type: "object",
-      required: ["promptName", "variables"],
-      properties: {
-        promptName: { type: "string", description: "The prompt name" },
-        variables: { type: "object", description: "Key-value map of input variables" },
-        environmentOrVersion: { type: "string", default: "production" }
-      }
-    }
-  },
-  {
-    name: "prompt_diff",
-    description: "Semantically compare two versions of a prompt, showing breaking changes and recommended bump",
-    inputSchema: {
-      type: "object",
-      required: ["promptName", "fromVersion", "toVersion"],
-      properties: {
-        promptName: { type: "string", description: "The prompt name" },
-        fromVersion: { type: "string", description: "Baseline version (e.g. '1.0.0')" },
-        toVersion: { type: "string", description: "Candidate version (e.g. '1.1.0')" }
-      }
-    }
-  },
-  {
-    name: "prompt_evaluate",
-    description: "Run evaluation test cases on a prompt version",
-    inputSchema: {
-      type: "object",
-      required: ["promptName", "version"],
-      properties: {
-        promptName: { type: "string", description: "The prompt name" },
-        version: { type: "string", description: "Prompt version to evaluate" }
-      }
-    }
-  }
-];
+/**
+ * Creates and configures the standard Model Context Protocol (MCP) server
+ * for AI Prompt Registry with all prompt management tools.
+ */
+export function createMcpServer(client: PromptRegistry = defaultClient): McpServer {
+  const server = new McpServer({
+    name: "ai-prompt-registry-mcp",
+    version: "1.0.0"
+  });
 
-async function handleToolCall(name: string, args: any): Promise<any> {
-  switch (name) {
-    case "prompt_list": {
-      const prompts = await client.listPrompts(args);
-      return {
-        content: [{ type: "text", text: JSON.stringify(prompts, null, 2) }]
-      };
+  // 1. prompt_list
+  server.tool(
+    "prompt_list",
+    "List all prompts registered in AI Prompt Registry",
+    {
+      search: z.string().optional().describe("Search query for prompt name or description"),
+      tag: z.string().optional().describe("Filter by tag")
+    },
+    async (args) => {
+      try {
+        const prompts = await client.listPrompts(args);
+        return {
+          content: [{ type: "text", text: JSON.stringify(prompts, null, 2) }]
+        };
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message}` }]
+        };
+      }
     }
-    case "prompt_get": {
-      const result = await client.get(args.promptName, args.environmentOrVersion || "production");
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
+  );
+
+  // 2. prompt_get
+  server.tool(
+    "prompt_get",
+    "Retrieve a prompt and its resolved version by environment (e.g. production) or alias",
+    {
+      promptName: z.string().describe("The unique name/slug of the prompt"),
+      environmentOrVersion: z
+        .string()
+        .optional()
+        .default("production")
+        .describe("Target environment (e.g. 'production', 'staging') or exact semver version (e.g. '1.0.0')")
+    },
+    async (args) => {
+      try {
+        const result = await client.get(args.promptName, args.environmentOrVersion || "production");
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message}` }]
+        };
+      }
     }
-    case "prompt_get_version": {
-      const version = await client.getVersion(args.promptName, args.version);
-      return {
-        content: [{ type: "text", text: JSON.stringify(version, null, 2) }]
-      };
+  );
+
+  // 3. prompt_get_version
+  server.tool(
+    "prompt_get_version",
+    "Retrieve an exact immutable version of a prompt",
+    {
+      promptName: z.string().describe("The unique name of the prompt"),
+      version: z.string().describe("Exact semver version, e.g. '1.2.0'")
+    },
+    async (args) => {
+      try {
+        const version = await client.getVersion(args.promptName, args.version);
+        return {
+          content: [{ type: "text", text: JSON.stringify(version, null, 2) }]
+        };
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message}` }]
+        };
+      }
     }
-    case "prompt_render": {
-      const rendered = await client.render(args.promptName, args.variables, {
-        environmentOrVersion: args.environmentOrVersion
-      });
-      return {
-        content: [{ type: "text", text: JSON.stringify(rendered, null, 2) }]
-      };
+  );
+
+  // 4. prompt_render
+  server.tool(
+    "prompt_render",
+    "Safely render a prompt with variables without executing arbitrary code",
+    {
+      promptName: z.string().describe("The prompt name"),
+      variables: z.record(z.string(), z.any()).describe("Key-value map of input variables"),
+      environmentOrVersion: z.string().optional().default("production").describe("Target environment or version")
+    },
+    async (args) => {
+      try {
+        const rendered = await client.render(args.promptName, args.variables, {
+          environmentOrVersion: args.environmentOrVersion
+        });
+        return {
+          content: [{ type: "text", text: JSON.stringify(rendered, null, 2) }]
+        };
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message}` }]
+        };
+      }
     }
-    case "prompt_diff": {
-      const diff = await client.diff(args.promptName, args.fromVersion, args.toVersion);
-      return {
-        content: [{ type: "text", text: JSON.stringify(diff, null, 2) }]
-      };
+  );
+
+  // 5. prompt_diff
+  server.tool(
+    "prompt_diff",
+    "Semantically compare two versions of a prompt, showing breaking changes and recommended bump",
+    {
+      promptName: z.string().describe("The prompt name"),
+      fromVersion: z.string().describe("Baseline version (e.g. '1.0.0')"),
+      toVersion: z.string().describe("Candidate version (e.g. '1.1.0')")
+    },
+    async (args) => {
+      try {
+        const diff = await client.diff(args.promptName, args.fromVersion, args.toVersion);
+        return {
+          content: [{ type: "text", text: JSON.stringify(diff, null, 2) }]
+        };
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message}` }]
+        };
+      }
     }
-    case "prompt_evaluate": {
-      const ev = await client.evaluate(args.promptName, args.version);
-      return {
-        content: [{ type: "text", text: JSON.stringify(ev, null, 2) }]
-      };
+  );
+
+  // 6. prompt_evaluate
+  server.tool(
+    "prompt_evaluate",
+    "Run evaluation test cases on a prompt version",
+    {
+      promptName: z.string().describe("The prompt name"),
+      version: z.string().describe("Prompt version to evaluate")
+    },
+    async (args) => {
+      try {
+        const ev = await client.evaluate(args.promptName, args.version);
+        return {
+          content: [{ type: "text", text: JSON.stringify(ev, null, 2) }]
+        };
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message}` }]
+        };
+      }
     }
-    default:
-      throw new Error(`Unknown tool '${name}'`);
-  }
+  );
+
+  return server;
 }
 
 /**
- * Standard MCP JSON-RPC stdio protocol loop
+ * Starts the MCP server on stdio transport
  */
-export function startMcpServer() {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: false
-  });
-
-  rl.on("line", async (line) => {
-    if (!line.trim()) return;
-
-    try {
-      const req = JSON.parse(line);
-      const id = req.id;
-
-      if (req.method === "initialize") {
-        const response = {
-          jsonrpc: "2.0",
-          id,
-          result: {
-            protocolVersion: "2024-11-05",
-            capabilities: {
-              tools: {}
-            },
-            serverInfo: {
-              name: "ai-prompt-registry-mcp",
-              version: "1.0.0"
-            }
-          }
-        };
-        process.stdout.write(JSON.stringify(response) + "\n");
-        return;
-      }
-
-      if (req.method === "notifications/initialized") {
-        return;
-      }
-
-      if (req.method === "tools/list") {
-        const response = {
-          jsonrpc: "2.0",
-          id,
-          result: {
-            tools: TOOLS
-          }
-        };
-        process.stdout.write(JSON.stringify(response) + "\n");
-        return;
-      }
-
-      if (req.method === "tools/call") {
-        const toolName = req.params?.name;
-        const toolArgs = req.params?.arguments || {};
-        try {
-          const res = await handleToolCall(toolName, toolArgs);
-          process.stdout.write(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              id,
-              result: res
-            }) + "\n"
-          );
-        } catch (err: any) {
-          process.stdout.write(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              id,
-              result: {
-                isError: true,
-                content: [{ type: "text", text: `Error: ${err.message}` }]
-              }
-            }) + "\n"
-          );
-        }
-        return;
-      }
-
-      // Default method not found
-      process.stdout.write(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id,
-          error: { code: -32601, message: `Method '${req.method}' not found` }
-        }) + "\n"
-      );
-    } catch (err: any) {
-      process.stdout.write(
-        JSON.stringify({
-          jsonrpc: "2.0",
-          id: null,
-          error: { code: -32700, message: `Parse error: ${err.message}` }
-        }) + "\n"
-      );
-    }
-  });
+export async function startMcpServer() {
+  const server = createMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }
 
 // If directly executed
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startMcpServer();
+  startMcpServer().catch((err) => {
+    console.error("Failed to start MCP server:", err);
+    process.exit(1);
+  });
 }

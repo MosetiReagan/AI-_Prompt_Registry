@@ -2,6 +2,10 @@
   "name": "@ai-prompt-registry/mcp",
   "version": "1.0.0",
   "description": "Model Context Protocol (MCP) server for AI Prompt Registry",
+  "author": {
+    "name": "Reagan Moseti",
+    "url": "https://www.linkedin.com/in/reagan-moseti-1a8380238/"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -13,7 +17,9 @@
   },
   "dependencies": {
     "@ai-prompt-registry/core": "workspace:*",
-    "@ai-prompt-registry/sdk": "workspace:*"
+    "@ai-prompt-registry/sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.10.2"
