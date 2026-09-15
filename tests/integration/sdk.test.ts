@@ -4,12 +4,27 @@ import { buildServer } from "../../apps/api/src/server.js";
 import { MemoryStorage } from "../../apps/api/src/storage/memory.js";
 import { PromptRegistry } from "@ai-prompt-registry/sdk";
 
+import { hashApiKey } from "../../apps/api/src/middleware/auth.js";
+
 describe("TypeScript SDK Integration", () => {
   let app: FastifyInstance;
   let client: PromptRegistry;
 
   beforeAll(async () => {
     const storage = new MemoryStorage();
+    const sdkApiKey = "apr_live_sdk_test_key";
+    await storage.createApiKey({
+      id: "key_sdk",
+      organizationId: "default",
+      name: "SDK Test Key",
+      keyHash: hashApiKey(sdkApiKey),
+      keyPrefix: "apr_live_sdk",
+      scopes: ["read", "write", "publish", "admin", "execute"],
+      expiresAt: null,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null
+    });
+
     app = await buildServer({ storage, logger: false });
     await app.ready();
 
@@ -34,6 +49,7 @@ describe("TypeScript SDK Integration", () => {
 
     client = new PromptRegistry({
       baseUrl: "http://localhost:3000",
+      apiKey: sdkApiKey,
       fetch: customFetch
     });
   });

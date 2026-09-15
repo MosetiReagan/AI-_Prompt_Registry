@@ -3,18 +3,67 @@ import { FastifyInstance } from "fastify";
 import { buildServer } from "../../apps/api/src/server.js";
 import { MemoryStorage } from "../../apps/api/src/storage/memory.js";
 
+import { hashApiKey } from "../../apps/api/src/middleware/auth.js";
+
 describe("End-to-End Prompt Registry Lifecycle", () => {
   let app: FastifyInstance;
   let storage: MemoryStorage;
 
+  const adminApiKey = "apr_live_lifecycle_test_admin_key";
+  const authHeaders = { authorization: `Bearer ${adminApiKey}` };
+
   beforeAll(async () => {
     storage = new MemoryStorage();
+    // Provision admin API key for tests
+    await storage.createApiKey({
+      id: "key_admin",
+      organizationId: "default",
+      name: "Admin Lifecycle Key",
+      keyHash: hashApiKey(adminApiKey),
+      keyPrefix: "apr_live_lif",
+      scopes: ["read", "write", "publish", "admin", "execute"],
+      expiresAt: null,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null
+    });
+
     app = await buildServer({ storage, logger: false });
     await app.ready();
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it("rejects unauthenticated requests by default with 401", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/prompts"
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().code).toBe("AUTHENTICATION_REQUIRED");
+  });
+
+  it("allows unauthenticated read but blocks publish/admin when ALLOW_ANONYMOUS=true", async () => {
+    process.env.ALLOW_ANONYMOUS = "true";
+
+    // Read should succeed with anonymous identity
+    const readRes = await app.inject({
+      method: "GET",
+      url: "/v1/prompts"
+    });
+    expect(readRes.statusCode).toBe(200);
+
+    // Write / Admin action must be rejected with 403
+    const writeRes = await app.inject({
+      method: "POST",
+      url: "/v1/prompts",
+      payload: { name: "unauthorized.prompt" }
+    });
+    expect(writeRes.statusCode).toBe(403);
+    expect(writeRes.json().code).toBe("INSUFFICIENT_SCOPE");
+
+    delete process.env.ALLOW_ANONYMOUS;
   });
 
   it("completes full production lifecycle: create -> version -> test -> evaluate -> publish -> promote -> resolve -> rollback", async () => {
@@ -24,6 +73,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const createRes = await app.inject({
       method: "POST",
       url: "/v1/prompts",
+      headers: authHeaders,
       payload: {
         name: promptName,
         description: "Customer support reply assistant",
@@ -39,6 +89,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const v1Res = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/versions`,
+      headers: authHeaders,
       payload: {
         version: "1.0.0",
         template: [
@@ -61,6 +112,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const tcRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/test-cases`,
+      headers: authHeaders,
       payload: {
         name: "Billing issue test",
         inputs: {
@@ -78,6 +130,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const evalRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/evaluate`,
+      headers: authHeaders,
       payload: {
         version: "1.0.0"
       }
@@ -90,6 +143,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const promoteStagingRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/promote`,
+      headers: authHeaders,
       payload: {
         version: "1.0.0",
         environment: "staging",
@@ -103,6 +157,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const promoteProdRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/promote`,
+      headers: authHeaders,
       payload: {
         version: "1.0.0",
         environment: "production",
@@ -115,7 +170,8 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     // 7. Retrieve exact production version
     const resolveProdRes = await app.inject({
       method: "GET",
-      url: `/v1/prompts/${promptName}/resolve?target=production`
+      url: `/v1/prompts/${promptName}/resolve?target=production`,
+      headers: authHeaders
     });
     expect(resolveProdRes.statusCode).toBe(200);
     const resolvedProd = resolveProdRes.json();
@@ -126,6 +182,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const renderRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/render`,
+      headers: authHeaders,
       payload: {
         target: "production",
         variables: {
@@ -143,6 +200,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const v11Res = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/versions`,
+      headers: authHeaders,
       payload: {
         version: "1.1.0",
         template: [
@@ -162,6 +220,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const regRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/regression`,
+      headers: authHeaders,
       payload: {
         baselineVersion: "1.0.0",
         candidateVersion: "1.1.0",
@@ -177,6 +236,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const promoteProd11 = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/promote`,
+      headers: authHeaders,
       payload: {
         version: "1.1.0",
         environment: "production",
@@ -188,7 +248,8 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     // Verify production now resolves to 1.1.0
     const verifyProd11 = await app.inject({
       method: "GET",
-      url: `/v1/prompts/${promptName}/resolve?target=production`
+      url: `/v1/prompts/${promptName}/resolve?target=production`,
+      headers: authHeaders
     });
     expect(verifyProd11.json().resolvedVersion).toBe("1.1.0");
 
@@ -196,6 +257,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const rollbackRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/rollback`,
+      headers: authHeaders,
       payload: {
         environment: "production"
       }
@@ -208,7 +270,8 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     // 13. Verify production resolved version is restored to 1.0.0
     const verifyRestored = await app.inject({
       method: "GET",
-      url: `/v1/prompts/${promptName}/resolve?target=production`
+      url: `/v1/prompts/${promptName}/resolve?target=production`,
+      headers: authHeaders
     });
     expect(verifyRestored.json().resolvedVersion).toBe("1.0.0");
 
@@ -216,6 +279,7 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const overwriteRes = await app.inject({
       method: "POST",
       url: `/v1/prompts/${promptName}/versions`,
+      headers: authHeaders,
       payload: {
         version: "1.0.0",
         template: "Tampered content",
@@ -228,7 +292,8 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     // 15. Verify cryptographic audit log records exist
     const auditRes = await app.inject({
       method: "GET",
-      url: "/v1/audit-logs"
+      url: "/v1/audit-logs",
+      headers: authHeaders
     });
     expect(auditRes.statusCode).toBe(200);
     const logs = auditRes.json();

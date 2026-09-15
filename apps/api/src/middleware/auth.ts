@@ -22,10 +22,25 @@ export function hashApiKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
 }
 
+let hasWarnedAnonymous = false;
+
 export function authMiddleware(storage: IRegistryStorage) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     // Generate request ID
     req.requestId = (req.headers["x-request-id"] as string) || `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    // Public health and readiness endpoints do not require authentication
+    const url = req.url.split("?")[0];
+    if (url === "/health" || url === "/ready") {
+      req.identity = {
+        id: "public",
+        name: "Public",
+        organizationId: "default",
+        type: "anonymous",
+        scopes: ["read"]
+      };
+      return;
+    }
 
     const authHeader = req.headers["authorization"] || (req.headers["x-api-key"] as string);
 
@@ -52,14 +67,28 @@ export function authMiddleware(storage: IRegistryStorage) {
       return;
     }
 
-    // Default development/anonymous identity
-    req.identity = {
-      id: "anon-dev",
-      name: "Developer",
-      organizationId: (req.headers["x-organization-id"] as string) || "default",
-      type: "anonymous",
-      scopes: ["read", "write", "publish", "admin", "execute"]
-    };
+    // Check if anonymous access is explicitly allowed via environment variable
+    if (process.env.ALLOW_ANONYMOUS === "true") {
+      if (!hasWarnedAnonymous) {
+        hasWarnedAnonymous = true;
+        console.warn("⚠️ SECURITY WARNING: ALLOW_ANONYMOUS is enabled. Unauthenticated requests are permitted with read and execute scopes only.");
+      }
+
+      req.identity = {
+        id: "anon-dev",
+        name: "Anonymous User",
+        organizationId: (req.headers["x-organization-id"] as string) || "default",
+        type: "anonymous",
+        scopes: ["read", "execute"] // NEVER admin, write, or publish
+      };
+      return;
+    }
+
+    return reply.status(401).send({
+      error: "Unauthorized",
+      message: "Authentication required. Provide an API key via Authorization: Bearer <key> header.",
+      code: "AUTHENTICATION_REQUIRED"
+    });
   };
 }
 

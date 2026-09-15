@@ -3,14 +3,32 @@ import { FastifyInstance } from "fastify";
 import { buildServer } from "../../apps/api/src/server.js";
 import { MemoryStorage } from "../../apps/api/src/storage/memory.js";
 
+import { hashApiKey } from "../../apps/api/src/middleware/auth.js";
+
 describe("Security, Scopes, and Multi-Tenant Isolation", () => {
   let app: FastifyInstance;
   let storage: MemoryStorage;
+
+  const adminApiKey = "apr_live_bootstrap_admin_key";
+  const adminHeaders = { authorization: `Bearer ${adminApiKey}` };
 
   beforeAll(async () => {
     storage = new MemoryStorage();
     storage.seedDefaults("org-a");
     storage.seedDefaults("org-b");
+
+    // Provision bootstrap admin key
+    await storage.createApiKey({
+      id: "key_bootstrap",
+      organizationId: "org-a",
+      name: "Bootstrap Admin",
+      keyHash: hashApiKey(adminApiKey),
+      keyPrefix: "apr_live_boo",
+      scopes: ["read", "write", "publish", "admin", "execute"],
+      expiresAt: null,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null
+    });
 
     app = await buildServer({ storage, logger: false });
     await app.ready();
@@ -21,11 +39,11 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
   });
 
   it("creates hashed API keys and authenticates valid requests", async () => {
-    // 1. Create API key for org-a
+    // 1. Create API key for org-a using admin key
     const createKeyRes = await app.inject({
       method: "POST",
       url: "/v1/api-keys",
-      headers: { "x-organization-id": "org-a" },
+      headers: { ...adminHeaders, "x-organization-id": "org-a" },
       payload: {
         name: "Test CI Key",
         scopes: ["read", "write", "publish"]
@@ -65,7 +83,7 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     const pRes = await app.inject({
       method: "POST",
       url: "/v1/prompts",
-      headers: { "x-organization-id": "org-a" },
+      headers: { ...adminHeaders, "x-organization-id": "org-a" },
       payload: {
         name: "org-a.private-prompt",
         description: "Confidential prompt for Org A"
@@ -77,15 +95,28 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     const readOrgA = await app.inject({
       method: "GET",
       url: "/v1/prompts/org-a.private-prompt",
-      headers: { "x-organization-id": "org-a" }
+      headers: { ...adminHeaders, "x-organization-id": "org-a" }
     });
     expect(readOrgA.statusCode).toBe(200);
 
-    // Org B CANNOT read it (404 isolated)
+    const orgBKey = "apr_live_org_b_test_key";
+    await storage.createApiKey({
+      id: "key_org_b",
+      organizationId: "org-b",
+      name: "Org B Key",
+      keyHash: hashApiKey(orgBKey),
+      keyPrefix: "apr_live_org",
+      scopes: ["read", "write"],
+      expiresAt: null,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null
+    });
+
+    // Org B CANNOT read Org A's prompt (404 isolated)
     const readOrgB = await app.inject({
       method: "GET",
       url: "/v1/prompts/org-a.private-prompt",
-      headers: { "x-organization-id": "org-b" }
+      headers: { authorization: `Bearer ${orgBKey}` }
     });
     expect(readOrgB.statusCode).toBe(404);
   });
@@ -95,14 +126,14 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     await app.inject({
       method: "POST",
       url: "/v1/prompts",
-      headers: { "x-organization-id": "org-a" },
+      headers: { ...adminHeaders, "x-organization-id": "org-a" },
       payload: { name: "leaky-prompt" }
     });
 
     const leakRes = await app.inject({
       method: "POST",
       url: "/v1/prompts/leaky-prompt/versions",
-      headers: { "x-organization-id": "org-a" },
+      headers: { ...adminHeaders, "x-organization-id": "org-a" },
       payload: {
         version: "1.0.0",
         template: "System key: sk-live1234567890abcdef1234567890",
