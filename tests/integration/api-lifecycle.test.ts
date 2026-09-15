@@ -216,6 +216,30 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     });
     expect(v11Res.statusCode).toBe(201);
 
+    // 9b. Calling regression without candidate evaluation returns 422 NO_EVALUATION_FOUND
+    const prematureRegRes = await app.inject({
+      method: "POST",
+      url: `/v1/prompts/${promptName}/regression`,
+      headers: authHeaders,
+      payload: {
+        baselineVersion: "1.0.0",
+        candidateVersion: "1.1.0"
+      }
+    });
+    expect(prematureRegRes.statusCode).toBe(422);
+    expect(prematureRegRes.json().code).toBe("NO_EVALUATION_FOUND");
+
+    // Evaluate 1.1.0 before regression comparison
+    const eval11Res = await app.inject({
+      method: "POST",
+      url: `/v1/prompts/${promptName}/evaluate`,
+      headers: authHeaders,
+      payload: {
+        version: "1.1.0"
+      }
+    });
+    expect(eval11Res.statusCode).toBe(200);
+
     // 10. Run regression tests between 1.0.0 and 1.1.0
     const regRes = await app.inject({
       method: "POST",

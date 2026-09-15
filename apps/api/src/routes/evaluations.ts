@@ -184,72 +184,22 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
       return reply.status(404).send({ error: "Not Found", message: `Prompt '${name}' not found` });
     }
 
-    let baseEval = await storage.getLatestEvaluation(orgId, prompt.id, baselineVersion);
-    let candEval = await storage.getLatestEvaluation(orgId, prompt.id, candidateVersion);
-
-    // If evaluations don't exist yet, trigger them
+    const baseEval = await storage.getLatestEvaluation(orgId, prompt.id, baselineVersion);
     if (!baseEval) {
-      const baseVerObj = await storage.getPromptVersion(orgId, prompt.id, baselineVersion);
-      if (!baseVerObj) {
-        return reply.status(404).send({ error: "Not Found", message: `Baseline version '${baselineVersion}' not found` });
-      }
-      baseEval = {
-        id: `eval_base_${Date.now()}`,
-        promptId: prompt.id,
-        promptVersionId: baseVerObj.id,
-        version: baselineVersion,
-        type: "deterministic",
-        score: 0.95,
-        passed: true,
-        totalTests: 1,
-        passedTests: 1,
-        testResults: [{
-          testCaseId: "tc_default",
-          testCaseName: "Baseline Check",
-          passed: true,
-          score: 0.95,
-          output: "OK",
-          evaluations: [{ type: "contains", passed: true, score: 0.95, reason: "Baseline pass" }],
-          durationMs: 12
-        }],
-        evaluatorConfig: {},
-        isAIGenerated: false,
-        createdAt: new Date().toISOString(),
-        createdBy: "system"
-      };
-      await storage.createEvaluation(baseEval);
+      return reply.status(422).send({
+        error: "Unprocessable Entity",
+        code: "NO_EVALUATION_FOUND",
+        message: `No evaluation found for baseline version '${baselineVersion}'. Run an evaluation before performing regression comparison.`
+      });
     }
 
+    const candEval = await storage.getLatestEvaluation(orgId, prompt.id, candidateVersion);
     if (!candEval) {
-      const candVerObj = await storage.getPromptVersion(orgId, prompt.id, candidateVersion);
-      if (!candVerObj) {
-        return reply.status(404).send({ error: "Not Found", message: `Candidate version '${candidateVersion}' not found` });
-      }
-      candEval = {
-        id: `eval_cand_${Date.now()}`,
-        promptId: prompt.id,
-        promptVersionId: candVerObj.id,
-        version: candidateVersion,
-        type: "deterministic",
-        score: 0.98,
-        passed: true,
-        totalTests: 1,
-        passedTests: 1,
-        testResults: [{
-          testCaseId: "tc_default",
-          testCaseName: "Baseline Check",
-          passed: true,
-          score: 0.98,
-          output: "OK",
-          evaluations: [{ type: "contains", passed: true, score: 0.98, reason: "Candidate pass" }],
-          durationMs: 10
-        }],
-        evaluatorConfig: {},
-        isAIGenerated: false,
-        createdAt: new Date().toISOString(),
-        createdBy: "system"
-      };
-      await storage.createEvaluation(candEval);
+      return reply.status(422).send({
+        error: "Unprocessable Entity",
+        code: "NO_EVALUATION_FOUND",
+        message: `No evaluation found for candidate version '${candidateVersion}'. Run an evaluation before performing regression comparison.`
+      });
     }
 
     const report = computeRegressionReport(baseEval, candEval, {
