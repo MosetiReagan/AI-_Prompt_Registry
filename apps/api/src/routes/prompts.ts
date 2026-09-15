@@ -14,8 +14,22 @@ export function registerPromptRoutes(app: FastifyInstance, storage: IRegistrySto
   // GET /v1/prompts
   app.get("/v1/prompts", { preHandler: requireScope("read") }, async (req, reply) => {
     const orgId = req.identity!.organizationId;
-    const query = req.query as { search?: string; tag?: string; status?: string };
-    const prompts = await storage.listPrompts(orgId, query);
+    const query = req.query as {
+      search?: string;
+      tag?: string;
+      status?: string;
+      limit?: string | number;
+      offset?: string | number;
+    };
+    const limit = query.limit !== undefined ? Math.min(Math.max(1, Number(query.limit) || 1), 200) : 50;
+    const offset = query.offset !== undefined ? Math.max(0, Number(query.offset) || 0) : 0;
+    const prompts = await storage.listPrompts(orgId, {
+      search: query.search,
+      tag: query.tag,
+      status: query.status,
+      limit,
+      offset
+    });
     return reply.send(prompts);
   });
 

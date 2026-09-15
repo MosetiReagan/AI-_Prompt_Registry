@@ -8,8 +8,10 @@ export function registerApprovalRoutes(app: FastifyInstance, storage: IRegistryS
   // GET /v1/approvals
   app.get("/v1/approvals", { preHandler: requireScope("read") }, async (req, reply) => {
     const orgId = req.identity!.organizationId;
-    const { status } = req.query as { status?: string };
-    const list = await storage.listApprovals(orgId, status);
+    const query = req.query as { status?: string; limit?: string | number; offset?: string | number };
+    const limit = query.limit !== undefined ? Math.min(Math.max(1, Number(query.limit) || 1), 200) : 50;
+    const offset = query.offset !== undefined ? Math.max(0, Number(query.offset) || 0) : 0;
+    const list = await storage.listApprovals(orgId, query.status, limit, offset);
     return reply.send(list);
   });
 

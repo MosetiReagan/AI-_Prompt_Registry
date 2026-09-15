@@ -16,7 +16,7 @@ import {
 export interface IRegistryStorage {
   // Prompts
   getPrompt(orgId: string, nameOrId: string): Promise<Prompt | null>;
-  listPrompts(orgId: string, query?: { search?: string; tag?: string; status?: string }): Promise<Prompt[]>;
+  listPrompts(orgId: string, query?: { search?: string; tag?: string; status?: string; limit?: number; offset?: number }): Promise<Prompt[]>;
   createPrompt(prompt: Prompt): Promise<Prompt>;
   updatePrompt(orgId: string, name: string, updates: Partial<Prompt>): Promise<Prompt>;
   deletePrompt(orgId: string, name: string): Promise<boolean>;
@@ -58,7 +58,7 @@ export interface IRegistryStorage {
   createApproval(approval: Approval): Promise<Approval>;
   getApproval(orgId: string, id: string): Promise<Approval | null>;
   updateApproval(orgId: string, id: string, updates: Partial<Approval>): Promise<Approval>;
-  listApprovals(orgId: string, status?: string): Promise<Approval[]>;
+  listApprovals(orgId: string, status?: string, limit?: number, offset?: number): Promise<Approval[]>;
 
   // API Keys
   createApiKey(apiKey: ApiKey): Promise<ApiKey>;
@@ -69,7 +69,7 @@ export interface IRegistryStorage {
 
   // Audit Logs
   createAuditLog(log: AuditLog): Promise<AuditLog>;
-  listAuditLogs(orgId: string, limit?: number): Promise<AuditLog[]>;
+  listAuditLogs(orgId: string, limit?: number, offset?: number): Promise<AuditLog[]>;
 
   // Usage / Telemetry
   recordUsageEvent(event: UsageEvent): Promise<void>;

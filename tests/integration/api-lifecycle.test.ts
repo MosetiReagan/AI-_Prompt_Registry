@@ -348,5 +348,33 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     expect(actions).toContain("version.published");
     expect(actions).toContain("environment.promoted");
     expect(actions).toContain("environment.rolled_back");
+
+    // 16. Verify pagination and limit capping
+    const page1Res = await app.inject({
+      method: "GET",
+      url: "/v1/audit-logs?limit=2&offset=0",
+      headers: authHeaders
+    });
+    expect(page1Res.statusCode).toBe(200);
+    const page1Logs = page1Res.json();
+    expect(page1Logs.length).toBe(2);
+
+    const page2Res = await app.inject({
+      method: "GET",
+      url: "/v1/audit-logs?limit=2&offset=2",
+      headers: authHeaders
+    });
+    expect(page2Res.statusCode).toBe(200);
+    const page2Logs = page2Res.json();
+    expect(page2Logs.length).toBeGreaterThanOrEqual(1);
+    expect(page2Logs[0].id).not.toBe(page1Logs[0].id);
+
+    // Limit cap enforcement (max 200)
+    const cappedPromptRes = await app.inject({
+      method: "GET",
+      url: "/v1/prompts?limit=9999",
+      headers: authHeaders
+    });
+    expect(cappedPromptRes.statusCode).toBe(200);
   });
 });

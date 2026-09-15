@@ -54,7 +54,7 @@ export class PostgresStorage implements IRegistryStorage {
     };
   }
 
-  async listPrompts(orgId: string, query?: { search?: string; tag?: string; status?: string }): Promise<Prompt[]> {
+  async listPrompts(orgId: string, query?: { search?: string; tag?: string; status?: string; limit?: number; offset?: number }): Promise<Prompt[]> {
     let sql = `SELECT * FROM prompts WHERE organization_id = $1`;
     const params: any[] = [orgId];
 
@@ -67,6 +67,15 @@ export class PostgresStorage implements IRegistryStorage {
       sql += ` AND (name ILIKE $${params.length} OR description ILIKE $${params.length})`;
     }
     sql += ` ORDER BY updated_at DESC`;
+
+    if (query?.limit !== undefined) {
+      params.push(query.limit);
+      sql += ` LIMIT $${params.length}`;
+    }
+    if (query?.offset !== undefined) {
+      params.push(query.offset);
+      sql += ` OFFSET $${params.length}`;
+    }
 
     const res = await this.query(sql, params);
     return res.rows.map((r: any) => ({
@@ -672,7 +681,7 @@ export class PostgresStorage implements IRegistryStorage {
     return updated;
   }
 
-  async listApprovals(orgId: string, status?: string): Promise<Approval[]> {
+  async listApprovals(orgId: string, status?: string, limit?: number, offset?: number): Promise<Approval[]> {
     let sql = `SELECT a.* FROM approvals a
                JOIN prompts p ON a.prompt_id = p.id
                WHERE p.organization_id = $1`;
@@ -682,6 +691,16 @@ export class PostgresStorage implements IRegistryStorage {
       sql += ` AND a.status = $2`;
     }
     sql += ` ORDER BY a.created_at DESC`;
+
+    if (limit !== undefined) {
+      params.push(limit);
+      sql += ` LIMIT $${params.length}`;
+    }
+    if (offset !== undefined) {
+      params.push(offset);
+      sql += ` OFFSET $${params.length}`;
+    }
+
     const res = await this.query(sql, params);
     return res.rows.map((r: any) => ({
       id: r.id,
@@ -780,10 +799,10 @@ export class PostgresStorage implements IRegistryStorage {
     return log;
   }
 
-  async listAuditLogs(orgId: string, limit: number = 100): Promise<AuditLog[]> {
+  async listAuditLogs(orgId: string, limit: number = 50, offset: number = 0): Promise<AuditLog[]> {
     const res = await this.query(
-      `SELECT * FROM audit_logs WHERE organization_id = $1 ORDER BY timestamp DESC LIMIT $2`,
-      [orgId, limit]
+      `SELECT * FROM audit_logs WHERE organization_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3`,
+      [orgId, limit, offset]
     );
     return res.rows.map((r: any) => ({
       id: r.id,

@@ -95,7 +95,7 @@ export class MemoryStorage implements IRegistryStorage {
     return null;
   }
 
-  async listPrompts(orgId: string, query?: { search?: string; tag?: string; status?: string }): Promise<Prompt[]> {
+  async listPrompts(orgId: string, query?: { search?: string; tag?: string; status?: string; limit?: number; offset?: number }): Promise<Prompt[]> {
     const list: Prompt[] = [];
     for (const p of this.prompts.values()) {
       if (p.organizationId !== orgId) continue;
@@ -108,7 +108,11 @@ export class MemoryStorage implements IRegistryStorage {
       }
       list.push(clone(p));
     }
-    return list;
+    const offset = query?.offset ?? 0;
+    if (query?.limit !== undefined) {
+      return list.slice(offset, offset + query.limit);
+    }
+    return offset > 0 ? list.slice(offset) : list;
   }
 
   async createPrompt(prompt: Prompt): Promise<Prompt> {
@@ -377,7 +381,7 @@ export class MemoryStorage implements IRegistryStorage {
     return clone(updated);
   }
 
-  async listApprovals(orgId: string, status?: string): Promise<Approval[]> {
+  async listApprovals(orgId: string, status?: string, limit?: number, offset?: number): Promise<Approval[]> {
     const list: Approval[] = [];
     for (const a of this.approvals.values()) {
       const prompt = await this.getPrompt(orgId, a.promptId);
@@ -386,7 +390,11 @@ export class MemoryStorage implements IRegistryStorage {
       list.push(clone(a));
     }
     list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return list;
+    const off = offset ?? 0;
+    if (limit !== undefined) {
+      return list.slice(off, off + limit);
+    }
+    return off > 0 ? list.slice(off) : list;
   }
 
   // --- API Keys ---
@@ -434,10 +442,10 @@ export class MemoryStorage implements IRegistryStorage {
     return clone(log);
   }
 
-  async listAuditLogs(orgId: string, limit: number = 100): Promise<AuditLog[]> {
+  async listAuditLogs(orgId: string, limit: number = 50, offset: number = 0): Promise<AuditLog[]> {
     return this.auditLogs
       .filter(l => l.organizationId === orgId)
-      .slice(0, limit)
+      .slice(offset, offset + limit)
       .map(clone);
   }
 
