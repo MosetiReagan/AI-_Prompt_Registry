@@ -142,14 +142,18 @@ export class MemoryStorage implements IRegistryStorage {
 
   // --- Versions ---
   async getPromptVersion(orgId: string, promptId: string, version: string): Promise<PromptVersion | null> {
-    const v = this.versions.get(`${promptId}:${version}`);
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return null;
+    const v = this.versions.get(`${prompt.id}:${version}`) || this.versions.get(`${prompt.name}:${version}`);
     return v ? clone(v) : null;
   }
 
   async listPromptVersions(orgId: string, promptId: string): Promise<PromptVersion[]> {
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return [];
     const list: PromptVersion[] = [];
     for (const v of this.versions.values()) {
-      if (v.promptId === promptId) {
+      if (v.promptId === prompt.id || v.promptId === prompt.name) {
         list.push(clone(v));
       }
     }
@@ -260,15 +264,19 @@ export class MemoryStorage implements IRegistryStorage {
   }
 
   async listDeployments(orgId: string, promptId: string): Promise<Deployment[]> {
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return [];
     return this.deployments
-      .filter(d => d.promptId === promptId)
+      .filter(d => d.promptId === prompt.id || d.promptId === prompt.name)
       .sort((a, b) => b.deployedAt.localeCompare(a.deployedAt))
       .map(clone);
   }
 
   async getLatestDeployment(orgId: string, promptId: string, environment: string): Promise<Deployment | null> {
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return null;
     const matching = this.deployments
-      .filter(d => d.promptId === promptId && d.environmentName === environment && d.status === "active")
+      .filter(d => (d.promptId === prompt.id || d.promptId === prompt.name) && d.environmentName === environment && d.status === "active")
       .sort((a, b) => b.deployedAt.localeCompare(a.deployedAt));
 
     return matching.length > 0 ? clone(matching[0]) : null;
@@ -282,15 +290,19 @@ export class MemoryStorage implements IRegistryStorage {
   }
 
   async getAlias(orgId: string, promptId: string, name: string): Promise<Alias | null> {
-    const a = this.aliases.get(`${promptId}:${name}`);
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return null;
+    const a = this.aliases.get(`${prompt.id}:${name}`) || this.aliases.get(`${prompt.name}:${name}`);
     return a ? clone(a) : null;
   }
 
   // --- Testing & Evaluation ---
   async listTestCases(orgId: string, promptId: string): Promise<TestCase[]> {
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return [];
     const list: TestCase[] = [];
     for (const t of this.testCases.values()) {
-      if (t.promptId === promptId) list.push(clone(t));
+      if (t.promptId === prompt.id || t.promptId === prompt.name) list.push(clone(t));
     }
     return list;
   }
@@ -306,9 +318,11 @@ export class MemoryStorage implements IRegistryStorage {
   }
 
   async getLatestEvaluation(orgId: string, promptId: string, version: string): Promise<Evaluation | null> {
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return null;
     const matching: Evaluation[] = [];
     for (const e of this.evaluations.values()) {
-      if (e.promptId === promptId && e.version === version) {
+      if ((e.promptId === prompt.id || e.promptId === prompt.name) && e.version === version) {
         matching.push(e);
       }
     }
@@ -318,9 +332,11 @@ export class MemoryStorage implements IRegistryStorage {
   }
 
   async listEvaluations(orgId: string, promptId: string): Promise<Evaluation[]> {
+    const prompt = await this.getPrompt(orgId, promptId);
+    if (!prompt) return [];
     const matching: Evaluation[] = [];
     for (const e of this.evaluations.values()) {
-      if (e.promptId === promptId) {
+      if (e.promptId === prompt.id || e.promptId === prompt.name) {
         matching.push(e);
       }
     }
@@ -347,11 +363,14 @@ export class MemoryStorage implements IRegistryStorage {
 
   async getApproval(orgId: string, id: string): Promise<Approval | null> {
     const a = this.approvals.get(id);
-    return a ? clone(a) : null;
+    if (!a) return null;
+    const prompt = await this.getPrompt(orgId, a.promptId);
+    if (!prompt) return null;
+    return clone(a);
   }
 
   async updateApproval(orgId: string, id: string, updates: Partial<Approval>): Promise<Approval> {
-    const existing = this.approvals.get(id);
+    const existing = await this.getApproval(orgId, id);
     if (!existing) throw new Error("Approval request not found");
     const updated = { ...existing, ...updates };
     this.approvals.set(id, clone(updated));
@@ -361,6 +380,8 @@ export class MemoryStorage implements IRegistryStorage {
   async listApprovals(orgId: string, status?: string): Promise<Approval[]> {
     const list: Approval[] = [];
     for (const a of this.approvals.values()) {
+      const prompt = await this.getPrompt(orgId, a.promptId);
+      if (!prompt) continue;
       if (status && a.status !== status) continue;
       list.push(clone(a));
     }

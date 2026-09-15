@@ -148,8 +148,10 @@ export class PostgresStorage implements IRegistryStorage {
   // --- Versions ---
   async getPromptVersion(orgId: string, promptId: string, version: string): Promise<PromptVersion | null> {
     const res = await this.query(
-      `SELECT * FROM prompt_versions WHERE prompt_id = $1 AND version = $2`,
-      [promptId, version]
+      `SELECT pv.* FROM prompt_versions pv
+       JOIN prompts p ON pv.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2) AND pv.version = $3`,
+      [orgId, promptId, version]
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
@@ -173,8 +175,11 @@ export class PostgresStorage implements IRegistryStorage {
 
   async listPromptVersions(orgId: string, promptId: string): Promise<PromptVersion[]> {
     const res = await this.query(
-      `SELECT * FROM prompt_versions WHERE prompt_id = $1 ORDER BY created_at DESC`,
-      [promptId]
+      `SELECT pv.* FROM prompt_versions pv
+       JOIN prompts p ON pv.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2)
+       ORDER BY pv.created_at DESC`,
+      [orgId, promptId]
     );
     return res.rows.map((r: any) => ({
       id: r.id,
@@ -339,8 +344,11 @@ export class PostgresStorage implements IRegistryStorage {
 
   async listDeployments(orgId: string, promptId: string): Promise<Deployment[]> {
     const res = await this.query(
-      `SELECT * FROM deployments WHERE prompt_id = $1 ORDER BY deployed_at DESC`,
-      [promptId]
+      `SELECT d.* FROM deployments d
+       JOIN prompts p ON d.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2)
+       ORDER BY d.deployed_at DESC`,
+      [orgId, promptId]
     );
     return res.rows.map((r: any) => ({
       id: r.id,
@@ -359,8 +367,11 @@ export class PostgresStorage implements IRegistryStorage {
 
   async getLatestDeployment(orgId: string, promptId: string, environment: string): Promise<Deployment | null> {
     const res = await this.query(
-      `SELECT * FROM deployments WHERE prompt_id = $1 AND environment_name = $2 AND status = 'active' ORDER BY deployed_at DESC LIMIT 1`,
-      [promptId, environment]
+      `SELECT d.* FROM deployments d
+       JOIN prompts p ON d.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2) AND d.environment_name = $3 AND d.status = 'active'
+       ORDER BY d.deployed_at DESC LIMIT 1`,
+      [orgId, promptId, environment]
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
@@ -394,7 +405,12 @@ export class PostgresStorage implements IRegistryStorage {
   }
 
   async getAlias(orgId: string, promptId: string, name: string): Promise<Alias | null> {
-    const res = await this.query(`SELECT * FROM aliases WHERE prompt_id = $1 AND name = $2`, [promptId, name]);
+    const res = await this.query(
+      `SELECT a.* FROM aliases a
+       JOIN prompts p ON a.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2) AND a.name = $3`,
+      [orgId, promptId, name]
+    );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
     return {
@@ -409,7 +425,13 @@ export class PostgresStorage implements IRegistryStorage {
   }
 
   async listTestCases(orgId: string, promptId: string): Promise<TestCase[]> {
-    const res = await this.query(`SELECT * FROM test_cases WHERE prompt_id = $1 ORDER BY created_at ASC`, [promptId]);
+    const res = await this.query(
+      `SELECT tc.* FROM test_cases tc
+       JOIN prompts p ON tc.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2)
+       ORDER BY tc.created_at ASC`,
+      [orgId, promptId]
+    );
     return res.rows.map((r: any) => ({
       id: r.id,
       promptId: r.prompt_id,
@@ -470,8 +492,11 @@ export class PostgresStorage implements IRegistryStorage {
 
   async getLatestEvaluation(orgId: string, promptId: string, version: string): Promise<Evaluation | null> {
     const res = await this.query(
-      `SELECT * FROM evaluations WHERE prompt_id = $1 AND version = $2 ORDER BY created_at DESC LIMIT 1`,
-      [promptId, version]
+      `SELECT e.* FROM evaluations e
+       JOIN prompts p ON e.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2) AND e.version = $3
+       ORDER BY e.created_at DESC LIMIT 1`,
+      [orgId, promptId, version]
     );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
@@ -495,8 +520,11 @@ export class PostgresStorage implements IRegistryStorage {
 
   async listEvaluations(orgId: string, promptId: string): Promise<Evaluation[]> {
     const res = await this.query(
-      `SELECT * FROM evaluations WHERE prompt_id = $1 ORDER BY created_at DESC`,
-      [promptId]
+      `SELECT e.* FROM evaluations e
+       JOIN prompts p ON e.prompt_id = p.id
+       WHERE p.organization_id = $1 AND (p.id = $2 OR p.name = $2)
+       ORDER BY e.created_at DESC`,
+      [orgId, promptId]
     );
     return res.rows.map((r: any) => ({
       id: r.id,
@@ -580,7 +608,12 @@ export class PostgresStorage implements IRegistryStorage {
   }
 
   async getApproval(orgId: string, id: string): Promise<Approval | null> {
-    const res = await this.query(`SELECT * FROM approvals WHERE id = $1`, [id]);
+    const res = await this.query(
+      `SELECT a.* FROM approvals a
+       JOIN prompts p ON a.prompt_id = p.id
+       WHERE p.organization_id = $1 AND a.id = $2`,
+      [orgId, id]
+    );
     if (res.rows.length === 0) return null;
     const r = res.rows[0];
     return {
@@ -612,13 +645,15 @@ export class PostgresStorage implements IRegistryStorage {
   }
 
   async listApprovals(orgId: string, status?: string): Promise<Approval[]> {
-    let sql = `SELECT * FROM approvals`;
-    const params: any[] = [];
+    let sql = `SELECT a.* FROM approvals a
+               JOIN prompts p ON a.prompt_id = p.id
+               WHERE p.organization_id = $1`;
+    const params: any[] = [orgId];
     if (status) {
       params.push(status);
-      sql += ` WHERE status = $1`;
+      sql += ` AND a.status = $2`;
     }
-    sql += ` ORDER BY created_at DESC`;
+    sql += ` ORDER BY a.created_at DESC`;
     const res = await this.query(sql, params);
     return res.rows.map((r: any) => ({
       id: r.id,

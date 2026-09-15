@@ -200,4 +200,69 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     expect(retrievedKey?.lastUsedAt).toBeDefined();
     expect(retrievedKey?.lastUsedAt).not.toBeNull();
   });
+
+  it("prevents cross-tenant access to approvals and prompt versions", async () => {
+    // Org A creates prompt and version
+    const p = await storage.createPrompt({
+      id: "prompt-tenant-a",
+      organizationId: "org-a",
+      name: "tenant-a-prompt",
+      description: "Tenant A secret prompt",
+      tags: [],
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    await storage.createPromptVersion({
+      id: "pv-tenant-a-1",
+      promptId: p.id,
+      version: "1.0.0",
+      content: { template: "tenant a secret content" },
+      variablesSchema: {},
+      format: "text",
+      checksum: "abc12345",
+      lifecycleState: "published",
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      createdBy: "org-a-user"
+    });
+
+    const approval = await storage.createApproval({
+      id: "appr-tenant-a-1",
+      promptId: p.id,
+      promptName: p.name,
+      promptVersionId: "pv-tenant-a-1",
+      version: "1.0.0",
+      targetEnvironment: "production",
+      requestedBy: "org-a-user",
+      status: "pending",
+      reviewedBy: null,
+      reviewNote: null,
+      createdAt: new Date().toISOString(),
+      reviewedAt: null
+    });
+
+    // Org B storage queries should return null / empty
+    const orgBVersion = await storage.getPromptVersion("org-b", p.id, "1.0.0");
+    expect(orgBVersion).toBeNull();
+
+    const orgBVersions = await storage.listPromptVersions("org-b", p.id);
+    expect(orgBVersions).toHaveLength(0);
+
+    const orgBApproval = await storage.getApproval("org-b", approval.id);
+    expect(orgBApproval).toBeNull();
+
+    const orgBApprovals = await storage.listApprovals("org-b");
+    expect(orgBApprovals).toHaveLength(0);
+
+    // Org A queries succeed
+    const orgAApproval = await storage.getApproval("org-a", approval.id);
+    expect(orgAApproval).not.toBeNull();
+    expect(orgAApproval?.id).toBe(approval.id);
+
+    const orgAApprovals = await storage.listApprovals("org-a");
+    expect(orgAApprovals.some(a => a.id === approval.id)).toBe(true);
+  });
 });
+
