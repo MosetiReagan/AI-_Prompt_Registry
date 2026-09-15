@@ -33,7 +33,7 @@ export async function getStorage(): Promise<IRegistryStorage> {
       return activeStorage;
     } catch (err) {
       console.error("FATAL: DATABASE_URL is set but failed to initialize PostgreSQL storage:", err);
-      throw new Error(`Failed to initialize PostgreSQL storage from DATABASE_URL: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`Failed to initialize PostgreSQL storage from DATABASE_URL: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
   }
 

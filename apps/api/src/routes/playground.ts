@@ -53,8 +53,8 @@ export function registerPlaygroundRoutes(app: FastifyInstance, storage: IRegistr
       : JSON.stringify(rendered.rendered);
     const promptTokens = Math.ceil(promptText.length / 4);
 
-    let outputText = "";
-    let completionTokens = 0;
+    let outputText: string;
+    let completionTokens: number;
     const selectedProvider = body.provider || "mock";
     const selectedModel = body.model || "default";
 

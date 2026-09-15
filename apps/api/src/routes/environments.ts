@@ -154,7 +154,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
     const envDeployments = deployments.filter(d => d.environmentName === environment);
 
     let rollbackVersion = targetVersion;
-    let rollbackFromDepId = currentDep.id;
+    const rollbackFromDepId = currentDep.id;
 
     if (!rollbackVersion) {
       // Find previous deployment before current

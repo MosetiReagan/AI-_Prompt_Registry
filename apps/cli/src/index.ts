@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { PromptRegistry } from "@ai-prompt-registry/sdk";
-import { parsePromptFile, serializePromptToYaml } from "@ai-prompt-registry/core";
+import { parsePromptFile } from "@ai-prompt-registry/core";
 
 const CONFIG_FILE = path.join(os.homedir(), ".promptregistry", "config.json");
 

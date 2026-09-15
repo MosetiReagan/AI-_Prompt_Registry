@@ -6,8 +6,7 @@ import {
   Prompt,
   PromptSchema,
   renderPrompt,
-  TemplateRenderError,
-  AuditLog
+  TemplateRenderError
 } from "@ai-prompt-registry/core";
 
 export function registerPromptRoutes(app: FastifyInstance, storage: IRegistryStorage) {

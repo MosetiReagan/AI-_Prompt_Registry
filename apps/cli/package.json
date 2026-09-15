@@ -2,6 +2,10 @@
   "name": "@ai-prompt-registry/cli",
   "version": "1.0.0",
   "description": "Production CLI for AI Prompt Registry",
+  "author": {
+    "name": "Reagan Moseti",
+    "url": "https://www.linkedin.com/in/reagan-moseti-1a8380238/"
+  },
   "main": "./dist/index.js",
   "bin": {
     "prompt-registry": "./dist/index.js"
