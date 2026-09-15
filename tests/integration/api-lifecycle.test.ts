@@ -108,6 +108,16 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     expect(v1.version).toBe("1.0.0");
     expect(v1.checksum).toBeDefined();
 
+    // 2b. Attempting to evaluate without test cases returns 422 NO_TEST_CASES_FOUND
+    const noTcEval = await app.inject({
+      method: "POST",
+      url: `/v1/prompts/${promptName}/evaluate`,
+      headers: authHeaders,
+      payload: { version: "1.0.0" }
+    });
+    expect(noTcEval.statusCode).toBe(422);
+    expect(noTcEval.json().code).toBe("NO_TEST_CASES_FOUND");
+
     // 3. Add test case
     const tcRes = await app.inject({
       method: "POST",

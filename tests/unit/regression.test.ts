@@ -85,4 +85,27 @@ describe("Prompt Regression Testing", () => {
     expect(report.regressedCases[0].testCaseId).toBe("tc_2");
     expect(report.failureReasons.length).toBeGreaterThan(0);
   });
+
+  it("rejects promotion if evaluation lacks real test case assertions", async () => {
+    const { PolicyEngine } = await import("@ai-prompt-registry/core");
+    const emptyAssertionEval: Evaluation = {
+      ...baselineEval,
+      testResults: [
+        {
+          testCaseId: "tc_empty",
+          testCaseName: "Empty test",
+          passed: true,
+          score: 1.0,
+          output: "OK",
+          evaluations: [], // No real assertions!
+          durationMs: 5
+        }
+      ]
+    };
+    const res = PolicyEngine.checkPromotion("production", { id: "pv_1", version: "1.0.0" } as any, null, {
+      latestEvaluation: emptyAssertionEval
+    });
+    expect(res.allowed).toBe(false);
+    expect(res.violations.some((v: any) => v.rule === "production.requireRealTestCases")).toBe(true);
+  });
 });

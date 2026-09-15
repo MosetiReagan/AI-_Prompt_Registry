@@ -80,6 +80,15 @@ describe("TypeScript SDK Integration", () => {
     });
     expect(v.version).toBe("1.0.0");
 
+    // 2b. Create test case with assertions
+    await client.createTestCase(promptName, {
+      name: "Order greeting test",
+      inputs: { name: "Alice", order_id: 42 },
+      expectedProperties: {
+        contains: ["order #42"]
+      }
+    });
+
     // 3. Evaluate prompt before promotion to satisfy production policy
     const ev = await client.evaluate(promptName, "1.0.0");
     expect(ev.score).toBeGreaterThanOrEqual(0.85);

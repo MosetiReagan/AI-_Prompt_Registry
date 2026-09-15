@@ -299,6 +299,33 @@ export class PromptRegistry {
   }
 
   /**
+   * Adds a test case with assertions to a prompt
+   */
+  public async createTestCase(
+    promptName: string,
+    testCase: {
+      name: string;
+      description?: string;
+      inputs: Record<string, any>;
+      expectedProperties?: {
+        exactMatch?: string;
+        contains?: string[];
+        regex?: string;
+        jsonSchema?: any;
+      };
+      tags?: string[];
+    }
+  ): Promise<any> {
+    return this.request<any>(
+      `/v1/prompts/${encodeURIComponent(promptName)}/test-cases`,
+      {
+        method: "POST",
+        body: JSON.stringify(testCase)
+      }
+    );
+  }
+
+  /**
    * Runs evaluation suite on a prompt version
    */
   public async evaluate(

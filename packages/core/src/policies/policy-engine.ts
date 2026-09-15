@@ -124,6 +124,20 @@ export class PolicyEngine {
             severity: "error"
           });
         } else {
+          // Verify that evaluation has real test assertions
+          const results = context.latestEvaluation.testResults || [];
+          const hasRealAssertions =
+            results.length > 0 &&
+            results.some(r => r.evaluations && r.evaluations.length > 0);
+
+          if (!hasRealAssertions) {
+            violations.push({
+              rule: "production.requireRealTestCases",
+              message: "Promotion to production requires an evaluation with real assertions, not an empty auto-generated test case.",
+              severity: "error"
+            });
+          }
+
           // Check score
           if (context.latestEvaluation.score < rules.production.minimumScore) {
             violations.push({

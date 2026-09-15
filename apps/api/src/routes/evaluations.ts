@@ -85,25 +85,13 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
       return reply.status(404).send({ error: "Not Found", message: `Version '${version}' not found for prompt '${name}'` });
     }
 
-    let testCases = await storage.listTestCases(orgId, prompt.id);
+    const testCases = await storage.listTestCases(orgId, prompt.id);
     if (testCases.length === 0) {
-      // Create a default test case from template variables if none exist
-      const defaultTc: TestCase = {
-        id: `tc_default_${prompt.id}`,
-        promptId: prompt.id,
-        name: "Default Baseline Sanity Test",
-        description: "Auto-generated test case from prompt variable schema",
-        inputs: {},
-        expectedProperties: {},
-        tags: ["auto-generated"],
-        metadata: {},
-        createdAt: new Date().toISOString()
-      };
-      // Populate mock inputs for required variables
-      for (const [varName, def] of Object.entries(verObj.variables || {})) {
-        defaultTc.inputs[varName] = def.default !== undefined ? def.default : `test-${varName}`;
-      }
-      testCases = [await storage.createTestCase(defaultTc)];
+      return reply.status(422).send({
+        error: "Unprocessable Entity",
+        code: "NO_TEST_CASES_FOUND",
+        message: `No test cases found for prompt '${name}'. Create test cases with assertions before running evaluation.`
+      });
     }
 
     const testResults = [];
