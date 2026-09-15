@@ -149,6 +149,18 @@ describe("End-to-End Prompt Registry Lifecycle", () => {
     const evalData = evalRes.json();
     expect(evalData.score).toBeGreaterThanOrEqual(0.85);
 
+    // 4b. Run evaluation with 'latest' version target (default in CLI)
+    const evalLatestRes = await app.inject({
+      method: "POST",
+      url: `/v1/prompts/${promptName}/evaluate`,
+      headers: authHeaders,
+      payload: {
+        version: "latest"
+      }
+    });
+    expect(evalLatestRes.statusCode).toBe(200);
+    expect(evalLatestRes.json().version).toBe("1.0.0");
+
     // 5. Promote to staging
     const promoteStagingRes = await app.inject({
       method: "POST",

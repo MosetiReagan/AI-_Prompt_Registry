@@ -80,7 +80,13 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
       return reply.status(404).send({ error: "Not Found", message: `Prompt '${name}' not found` });
     }
 
-    const verObj = await storage.getPromptVersion(orgId, prompt.id, version);
+    let verObj = await storage.getPromptVersion(orgId, prompt.id, version);
+    if (!verObj) {
+      const resolved = await storage.resolveVersion(orgId, name, version);
+      if (resolved) {
+        verObj = resolved.version;
+      }
+    }
     if (!verObj) {
       return reply.status(404).send({ error: "Not Found", message: `Version '${version}' not found for prompt '${name}'` });
     }
@@ -172,7 +178,19 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
       return reply.status(404).send({ error: "Not Found", message: `Prompt '${name}' not found` });
     }
 
-    const baseEval = await storage.getLatestEvaluation(orgId, prompt.id, baselineVersion);
+    let baseVer = baselineVersion;
+    const baseResolved = await storage.resolveVersion(orgId, name, baselineVersion);
+    if (baseResolved) {
+      baseVer = baseResolved.version.version;
+    }
+
+    let candVer = candidateVersion;
+    const candResolved = await storage.resolveVersion(orgId, name, candidateVersion);
+    if (candResolved) {
+      candVer = candResolved.version.version;
+    }
+
+    const baseEval = await storage.getLatestEvaluation(orgId, prompt.id, baseVer);
     if (!baseEval) {
       return reply.status(422).send({
         error: "Unprocessable Entity",
@@ -181,7 +199,7 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
       });
     }
 
-    const candEval = await storage.getLatestEvaluation(orgId, prompt.id, candidateVersion);
+    const candEval = await storage.getLatestEvaluation(orgId, prompt.id, candVer);
     if (!candEval) {
       return reply.status(422).send({
         error: "Unprocessable Entity",
