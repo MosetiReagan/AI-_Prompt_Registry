@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import {
@@ -41,7 +42,7 @@ export function registerPromptRoutes(app: FastifyInstance, storage: IRegistrySto
 
     const now = new Date().toISOString();
     const prompt: Prompt = {
-      id: `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `prompt_${randomUUID()}`,
       name: parsed.data.name!,
       slug: parsed.data.name!.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
       description: parsed.data.description || "",
@@ -62,7 +63,7 @@ export function registerPromptRoutes(app: FastifyInstance, storage: IRegistrySto
 
       // Audit Log
       await storage.createAuditLog({
-        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `audit_${randomUUID()}`,
         organizationId: orgId,
         actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
         action: "prompt.created",
@@ -134,7 +135,7 @@ export function registerPromptRoutes(app: FastifyInstance, storage: IRegistrySto
     }
 
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "prompt.deleted",

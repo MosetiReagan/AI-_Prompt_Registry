@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import {
@@ -25,7 +26,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
     }
 
     const env: Environment = {
-      id: `env_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `env_${randomUUID()}`,
       name: body.name.toLowerCase().trim(),
       description: body.description || "",
       organizationId: orgId,
@@ -92,7 +93,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
 
     const now = new Date().toISOString();
     const deployment: Deployment = {
-      id: `dep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `dep_${randomUUID()}`,
       promptId: prompt.id,
       promptName: prompt.name,
       environmentName: targetEnv.name,
@@ -109,7 +110,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
 
     // Audit log
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "environment.promoted",
@@ -177,7 +178,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
 
     const now = new Date().toISOString();
     const rollbackDep: Deployment = {
-      id: `dep_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `dep_${randomUUID()}`,
       promptId: prompt.id,
       promptName: prompt.name,
       environmentName: environment,
@@ -194,7 +195,7 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
 
     // Audit log
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "environment.rolled_back",

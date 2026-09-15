@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { ApiKeyScope } from "@ai-prompt-registry/core";
 
@@ -27,7 +27,7 @@ let hasWarnedAnonymous = false;
 export function authMiddleware(storage: IRegistryStorage) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     // Generate request ID
-    req.requestId = (req.headers["x-request-id"] as string) || `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    req.requestId = (req.headers["x-request-id"] as string) || `req_${randomUUID()}`;
 
     // Public health and readiness endpoints do not require authentication
     const url = req.url.split("?")[0];

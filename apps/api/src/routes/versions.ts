@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import {
@@ -63,7 +64,7 @@ export function registerVersionRoutes(app: FastifyInstance, storage: IRegistrySt
 
     const now = new Date().toISOString();
     const candidateVersion: PromptVersion = {
-      id: `ver_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `ver_${randomUUID()}`,
       promptId: prompt.id,
       version: body.version,
       lifecycleState: body.lifecycleState || "published",
@@ -105,7 +106,7 @@ export function registerVersionRoutes(app: FastifyInstance, storage: IRegistrySt
 
       // Audit Log
       await storage.createAuditLog({
-        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `audit_${randomUUID()}`,
         organizationId: orgId,
         actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
         action: "version.published",

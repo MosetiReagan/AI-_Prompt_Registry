@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import {
@@ -37,7 +38,7 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
     }
 
     const testCase: TestCase = {
-      id: `tc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `tc_${randomUUID()}`,
       promptId: prompt.id,
       name: body.name || `Test Case ${Date.now()}`,
       description: body.description || "",
@@ -135,7 +136,7 @@ export function registerEvaluationRoutes(app: FastifyInstance, storage: IRegistr
         : 1.0;
 
     const evaluation: Evaluation = {
-      id: `eval_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `eval_${randomUUID()}`,
       promptId: prompt.id,
       promptVersionId: verObj.id,
       version: verObj.version,

@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import { Approval } from "@ai-prompt-registry/core";
@@ -21,6 +22,13 @@ export function registerApprovalRoutes(app: FastifyInstance, storage: IRegistryS
       targetEnvironment: string;
     };
 
+    if (!body.promptName || !body.version || !body.targetEnvironment) {
+      return reply.status(400).send({
+        error: "Bad Request",
+        message: "'promptName', 'version', and 'targetEnvironment' are required"
+      });
+    }
+
     const prompt = await storage.getPrompt(orgId, body.promptName);
     if (!prompt) {
       return reply.status(404).send({ error: "Not Found", message: `Prompt '${body.promptName}' not found` });
@@ -32,7 +40,7 @@ export function registerApprovalRoutes(app: FastifyInstance, storage: IRegistryS
     }
 
     const approval: Approval = {
-      id: `appr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `appr_${randomUUID()}`,
       promptId: prompt.id,
       promptName: prompt.name,
       promptVersionId: verObj.id,
@@ -49,7 +57,7 @@ export function registerApprovalRoutes(app: FastifyInstance, storage: IRegistryS
     const created = await storage.createApproval(approval);
 
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "approval.requested",
@@ -82,7 +90,7 @@ export function registerApprovalRoutes(app: FastifyInstance, storage: IRegistryS
       });
 
       await storage.createAuditLog({
-        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        id: `audit_${randomUUID()}`,
         organizationId: orgId,
         actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
         action: `approval.${status}`,

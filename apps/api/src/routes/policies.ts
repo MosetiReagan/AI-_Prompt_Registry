@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import { Policy, PolicyEngine } from "@ai-prompt-registry/core";
@@ -18,7 +19,7 @@ export function registerPolicyRoutes(app: FastifyInstance, storage: IRegistrySto
 
     const existing = await storage.getPolicy(orgId);
     const policy: Policy = {
-      id: existing?.id || `pol_${Date.now()}`,
+      id: existing?.id || `pol_${randomUUID()}`,
       organizationId: orgId,
       name: body.name || existing?.name || "Organization Policy",
       description: body.description || existing?.description || "",
@@ -45,7 +46,7 @@ export function registerPolicyRoutes(app: FastifyInstance, storage: IRegistrySto
     const saved = await storage.savePolicy(policy);
 
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "policy.updated",

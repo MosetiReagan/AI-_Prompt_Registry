@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope, hashApiKey } from "../middleware/auth.js";
 import { ApiKey, ApiKeyScope } from "@ai-prompt-registry/core";
@@ -38,7 +38,7 @@ export function registerApiKeyRoutes(app: FastifyInstance, storage: IRegistrySto
     }
 
     const apiKey: ApiKey = {
-      id: `key_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `key_${randomUUID()}`,
       organizationId: orgId,
       name: body.name,
       keyHash,
@@ -52,7 +52,7 @@ export function registerApiKeyRoutes(app: FastifyInstance, storage: IRegistrySto
     await storage.createApiKey(apiKey);
 
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "api_key.created",
@@ -85,7 +85,7 @@ export function registerApiKeyRoutes(app: FastifyInstance, storage: IRegistrySto
     }
 
     await storage.createAuditLog({
-      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `audit_${randomUUID()}`,
       organizationId: orgId,
       actor: { id: req.identity!.id, name: req.identity!.name, type: req.identity!.type },
       action: "api_key.revoked",

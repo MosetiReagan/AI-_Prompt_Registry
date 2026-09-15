@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import { renderPrompt } from "@ai-prompt-registry/core";
@@ -17,22 +18,20 @@ export function registerPlaygroundRoutes(app: FastifyInstance, storage: IRegistr
     };
 
     if (!body.promptName) {
-      return reply.status(400).send({ error: "Bad Request", message: "promptName is required" });
+      return reply.status(400).send({ error: "Bad Request", message: "'promptName' parameter is required" });
     }
 
-    const target = body.version || body.environment || "latest";
+    const target = body.version || body.environment || "production";
     const resolved = await storage.resolveVersion(orgId, body.promptName, target);
 
     if (!resolved) {
       return reply.status(404).send({
         error: "Not Found",
-        message: `Could not resolve version for prompt '${body.promptName}' (target: ${target})`
+        message: `Prompt '${body.promptName}' could not be resolved for target '${target}'`
       });
     }
 
-    const startTime = Date.now();
-
-    // 1. Render prompt safely
+    // Render the prompt template
     let rendered;
     try {
       rendered = renderPrompt(
@@ -41,26 +40,23 @@ export function registerPlaygroundRoutes(app: FastifyInstance, storage: IRegistr
         resolved.version.variables
       );
     } catch (err: any) {
-      return reply.status(422).send({
-        error: "Render Failed",
+      return reply.status(400).send({
+        error: "Render Error",
         message: err.message,
-        missingVariables: err.missingVariables
+        code: err.code
       });
     }
 
-    const selectedProvider = body.provider || resolved.version.modelPreferences?.provider || "mock";
-    const selectedModel = body.model || resolved.version.modelPreferences?.name || "mock-llm-v1";
-
-    // 2. Execute via provider (or built-in deterministic simulator)
-    let outputText = "";
-    let promptTokens = 0;
-    let completionTokens = 0;
-
-    // Simulate token calculation
-    const rawInput = typeof rendered.rendered === "string"
+    const startTime = Date.now();
+    const promptText = typeof rendered.rendered === "string"
       ? rendered.rendered
       : JSON.stringify(rendered.rendered);
-    promptTokens = Math.max(1, Math.ceil(rawInput.length / 4));
+    const promptTokens = Math.ceil(promptText.length / 4);
+
+    let outputText = "";
+    let completionTokens = 0;
+    const selectedProvider = body.provider || "mock";
+    const selectedModel = body.model || "default";
 
     if (selectedProvider === "mock") {
       // Deterministic mock assistant response based on prompt context
@@ -77,7 +73,7 @@ export function registerPlaygroundRoutes(app: FastifyInstance, storage: IRegistr
 
     // Record telemetry event
     await storage.recordUsageEvent({
-      id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `evt_${randomUUID()}`,
       organizationId: orgId,
       promptName: body.promptName,
       promptVersion: resolved.version.version,

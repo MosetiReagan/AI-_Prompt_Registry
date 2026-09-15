@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { randomUUID } from "crypto";
 import { IRegistryStorage } from "../storage/interface.js";
 import { requireScope } from "../middleware/auth.js";
 import { UsageEvent, UsageEventSchema } from "@ai-prompt-registry/core";
@@ -10,7 +11,7 @@ export function registerAnalyticsRoutes(app: FastifyInstance, storage: IRegistry
     const body = req.body as Partial<UsageEvent>;
 
     const event: UsageEvent = {
-      id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `evt_${randomUUID()}`,
       promptName: body.promptName || "unknown",
       promptVersion: body.promptVersion || "1.0.0",
       environment: body.environment || "production",
