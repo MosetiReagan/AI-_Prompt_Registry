@@ -11,6 +11,12 @@ const CONFIG_FILE = path.join(os.homedir(), ".promptregistry", "config.json");
 function loadConfig(): { baseUrl: string; apiKey?: string } {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
+      try {
+        const stats = fs.statSync(CONFIG_FILE);
+        if ((stats.mode & 0o077) !== 0) {
+          fs.chmodSync(CONFIG_FILE, 0o600);
+        }
+      } catch {}
       return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
     }
   } catch {}
@@ -22,8 +28,67 @@ function loadConfig(): { baseUrl: string; apiKey?: string } {
 
 function saveConfig(cfg: { baseUrl: string; apiKey?: string }) {
   const dir = path.dirname(CONFIG_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  }
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {}
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  try {
+    fs.chmodSync(CONFIG_FILE, 0o600);
+  } catch {}
+}
+
+async function readApiKey(): Promise<string> {
+  if (!process.stdin.isTTY) {
+    return new Promise((resolve) => {
+      let data = "";
+      process.stdin.setEncoding("utf-8");
+      process.stdin.on("data", (chunk) => {
+        data += chunk;
+      });
+      process.stdin.on("end", () => {
+        resolve(data.trim());
+      });
+      process.stdin.resume();
+    });
+  }
+
+  return new Promise((resolve) => {
+    process.stdout.write("Enter API Key: ");
+    let input = "";
+    if (process.stdin.setRawMode) {
+      process.stdin.setRawMode(true);
+    }
+    process.stdin.resume();
+    const handler = (chunk: Buffer) => {
+      const s = chunk.toString();
+      for (const ch of s) {
+        if (ch === "\r" || ch === "\n") {
+          if (process.stdin.setRawMode) {
+            process.stdin.setRawMode(false);
+          }
+          process.stdin.removeListener("data", handler);
+          process.stdout.write("\n");
+          resolve(input.trim());
+          return;
+        } else if (ch === "\u0003") {
+          if (process.stdin.setRawMode) {
+            process.stdin.setRawMode(false);
+          }
+          process.exit(1);
+        } else if (ch === "\b" || ch === "\x7f") {
+          if (input.length > 0) {
+            input = input.slice(0, -1);
+          }
+        } else {
+          input += ch;
+        }
+      }
+    };
+    process.stdin.on("data", handler);
+  });
 }
 
 function getClient(): PromptRegistry {
@@ -99,8 +164,14 @@ program
   .description("Configure registry URL and API key")
   .option("-u, --url <url>", "Registry base URL", "http://localhost:3000")
   .option("-k, --key <key>", "API Key")
-  .action((opts) => {
-    saveConfig({ baseUrl: opts.url, apiKey: opts.key });
+  .action(async (opts) => {
+    let key = opts.key;
+    if (key) {
+      console.warn("⚠️ Warning: Passing API key via the -k/--key flag may expose it in shell history and process lists. Consider omitting the flag for secure input.");
+    } else {
+      key = await readApiKey();
+    }
+    saveConfig({ baseUrl: opts.url, apiKey: key || undefined });
     console.log(`✅ Saved configuration for registry at ${opts.url}`);
   });
 
