@@ -314,40 +314,60 @@ export class PostgresStorage implements IRegistryStorage {
   }
 
   async createDeployment(deployment: Deployment): Promise<Deployment> {
-    await this.query(
-      `UPDATE deployments SET status = 'superseded' WHERE prompt_id = $1 AND environment_name = $2 AND status = 'active'`,
-      [deployment.promptId, deployment.environmentName]
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    await this.query(
-      `INSERT INTO deployments (id, prompt_id, prompt_name, environment_name, version, prompt_version_id, deployed_by, deployed_at, rollback_from_deployment_id, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [
-        deployment.id,
-        deployment.promptId,
-        deployment.promptName,
-        deployment.environmentName,
-        deployment.version,
-        deployment.promptVersionId,
-        deployment.deployedBy,
-        deployment.deployedAt,
-        deployment.rollbackFromDeploymentId,
-        deployment.status,
-        deployment.notes
-      ]
-    );
+      await client.query(
+        `UPDATE deployments SET status = 'superseded' WHERE prompt_id = $1 AND environment_name = $2 AND status = 'active'`,
+        [deployment.promptId, deployment.environmentName]
+      );
 
-    await this.setAlias({
-      id: `alias-${deployment.promptId}-${deployment.environmentName}`,
-      promptId: deployment.promptId,
-      name: deployment.environmentName,
-      version: deployment.version,
-      promptVersionId: deployment.promptVersionId,
-      updatedAt: deployment.deployedAt,
-      updatedBy: deployment.deployedBy
-    });
+      await client.query(
+        `INSERT INTO deployments (id, prompt_id, prompt_name, environment_name, version, prompt_version_id, deployed_by, deployed_at, rollback_from_deployment_id, status, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          deployment.id,
+          deployment.promptId,
+          deployment.promptName,
+          deployment.environmentName,
+          deployment.version,
+          deployment.promptVersionId,
+          deployment.deployedBy,
+          deployment.deployedAt,
+          deployment.rollbackFromDeploymentId,
+          deployment.status,
+          deployment.notes
+        ]
+      );
 
-    return deployment;
+      await client.query(
+        `INSERT INTO aliases (id, prompt_id, name, version, prompt_version_id, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (prompt_id, name) DO UPDATE SET
+           version = EXCLUDED.version,
+           prompt_version_id = EXCLUDED.prompt_version_id,
+           updated_at = EXCLUDED.updated_at,
+           updated_by = EXCLUDED.updated_by`,
+        [
+          `alias-${deployment.promptId}-${deployment.environmentName}`,
+          deployment.promptId,
+          deployment.environmentName,
+          deployment.version,
+          deployment.promptVersionId,
+          deployment.deployedAt,
+          deployment.deployedBy
+        ]
+      );
+
+      await client.query("COMMIT");
+      return deployment;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async listDeployments(orgId: string, promptId: string): Promise<Deployment[]> {

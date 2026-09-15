@@ -334,5 +334,51 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     expect(promoteRes.json().code).toBe("POLICY_PROMOTION_BLOCKED");
     expect(promoteRes.json().violations.some((v: any) => v.rule === "production.requireEvaluation")).toBe(true);
   });
+
+  it("executes createDeployment in an atomic PostgreSQL transaction with rollback on failure", async () => {
+    const { PostgresStorage } = await import("../../apps/api/src/storage/postgres.js");
+    const executedQueries: string[] = [];
+    let released = false;
+
+    const mockClient = {
+      query: async (sql: string) => {
+        executedQueries.push(sql.trim());
+        if (sql.includes("INSERT INTO deployments")) {
+          throw new Error("Simulated DB connection failure during deployment insert");
+        }
+        return { rows: [] };
+      },
+      release: () => {
+        released = true;
+      }
+    };
+
+    const mockPool = {
+      connect: async () => mockClient,
+      query: async () => ({ rows: [] })
+    };
+
+    const pgStorage = new PostgresStorage(mockPool as any);
+    await expect(
+      pgStorage.createDeployment({
+        id: "dep-trans-1",
+        promptId: "prompt-1",
+        promptName: "test-prompt",
+        environmentName: "production",
+        version: "1.0.0",
+        promptVersionId: "pv-1",
+        deployedBy: "user",
+        deployedAt: new Date().toISOString(),
+        rollbackFromDeploymentId: null,
+        status: "active",
+        notes: "test transaction"
+      })
+    ).rejects.toThrow("Simulated DB connection failure");
+
+    expect(executedQueries).toContain("BEGIN");
+    expect(executedQueries).toContain("ROLLBACK");
+    expect(executedQueries).not.toContain("COMMIT");
+    expect(released).toBe(true);
+  });
 });
 
