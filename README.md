@@ -4,7 +4,7 @@
 >
 > *The equivalent of Git + npm registry + configuration management for AI prompts.*
 
-[![CI](https://github.com/ai-prompt-registry/ai-prompt-registry/actions/workflows/ci.yml/badge.svg)](https://github.com/ai-prompt-registry/ai-prompt-registry/actions/workflows/ci.yml)
+[![CI](https://github.com/MosetiReagan/AI-_Prompt_Registry/actions/workflows/ci.yml/badge.svg)](https://github.com/MosetiReagan/AI-_Prompt_Registry/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-green.svg)](https://nodejs.org/)
@@ -247,3 +247,5 @@ The database schema is automatically applied from `apps/api/src/storage/schema.s
 ## License
 
 [Apache-2.0](LICENSE) © 2026 AI Prompt Registry Contributors.
+
+Created and maintained by [Reagan Moseti](https://www.linkedin.com/in/reagan-moseti-1a8380238/).
