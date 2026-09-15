@@ -57,6 +57,23 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
 CREATE INDEX IF NOT EXISTS idx_versions_prompt ON prompt_versions(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_versions_version ON prompt_versions(version);
 
+-- Immutability enforcement trigger: prevents TOCTOU mutation or deletion of published/approved versions
+CREATE OR REPLACE FUNCTION prevent_published_version_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.lifecycle_state IN ('published', 'approved') THEN
+        RAISE EXCEPTION 'Version % is already published and immutable.', OLD.version;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_prevent_published_version_mutation ON prompt_versions;
+CREATE TRIGGER trg_prevent_published_version_mutation
+BEFORE UPDATE OR DELETE ON prompt_versions
+FOR EACH ROW
+EXECUTE FUNCTION prevent_published_version_mutation();
+
 CREATE TABLE IF NOT EXISTS environments (
     id VARCHAR(64) PRIMARY KEY,
     organization_id VARCHAR(64) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

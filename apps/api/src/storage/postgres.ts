@@ -200,18 +200,22 @@ export class PostgresStorage implements IRegistryStorage {
   }
 
   async createPromptVersion(version: PromptVersion): Promise<PromptVersion> {
-    const existing = await this.getPromptVersion("default", version.promptId, version.version);
-    if (existing && (existing.lifecycleState === "published" || existing.lifecycleState === "approved")) {
-      throw new Error(`Version '${version.version}' is already published and immutable.`);
-    }
-
-    await this.query(
+    const res = await this.query(
       `INSERT INTO prompt_versions (id, prompt_id, version, lifecycle_state, template, variables, output_schema, model_preferences, author, changelog, checksum, published_at, created_at, metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (prompt_id, version) DO UPDATE SET
          lifecycle_state = EXCLUDED.lifecycle_state,
+         template = EXCLUDED.template,
+         variables = EXCLUDED.variables,
+         output_schema = EXCLUDED.output_schema,
+         model_preferences = EXCLUDED.model_preferences,
+         author = EXCLUDED.author,
+         changelog = EXCLUDED.changelog,
+         checksum = EXCLUDED.checksum,
          published_at = EXCLUDED.published_at,
-         metadata = EXCLUDED.metadata`,
+         metadata = EXCLUDED.metadata
+       WHERE prompt_versions.lifecycle_state NOT IN ('published', 'approved')
+       RETURNING *`,
       [
         version.id,
         version.promptId,
@@ -229,6 +233,10 @@ export class PostgresStorage implements IRegistryStorage {
         JSON.stringify(version.metadata)
       ]
     );
+
+    if (res.rows.length === 0) {
+      throw new Error(`Version '${version.version}' is already published and immutable.`);
+    }
 
     return version;
   }
