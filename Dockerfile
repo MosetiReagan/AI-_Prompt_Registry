@@ -11,8 +11,9 @@ COPY apps/ ./apps/
 COPY tsconfig.json ./
 
 FROM base AS build
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm install --frozen-lockfile
 RUN pnpm -r build
+RUN pnpm prune --prod
 
 FROM node:22-alpine AS runner
 WORKDIR /app

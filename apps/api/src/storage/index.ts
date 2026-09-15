@@ -16,6 +16,19 @@ export async function getStorage(): Promise<IRegistryStorage> {
     try {
       const { default: pg } = await import("pg");
       const pool = new pg.Pool({ connectionString: dbUrl });
+
+      // Apply schema migrations on startup if schema file is present
+      try {
+        const schemaPath = new URL("./schema.sql", import.meta.url);
+        const { readFileSync, existsSync } = await import("fs");
+        if (existsSync(schemaPath)) {
+          const sql = readFileSync(schemaPath, "utf-8");
+          await pool.query(sql);
+        }
+      } catch (migrationErr) {
+        console.warn("Schema initialization notice:", migrationErr);
+      }
+
       activeStorage = new PostgresStorage(pool);
       return activeStorage;
     } catch (err) {
