@@ -43,7 +43,12 @@ describe("Deterministic Evaluators", () => {
 
     const schemaPass = DeterministicEvaluator.jsonSchema(validJson, {
       type: "object",
-      required: ["id", "name"]
+      properties: {
+        id: { type: "number" },
+        name: { type: "string" },
+        status: { type: "string", enum: ["active", "inactive"] }
+      },
+      required: ["id", "name", "status"]
     });
     expect(schemaPass.passed).toBe(true);
 
@@ -52,6 +57,25 @@ describe("Deterministic Evaluators", () => {
       required: ["missingField"]
     });
     expect(schemaFail.passed).toBe(false);
+
+    // Fails on type mismatch
+    const typeMismatch = DeterministicEvaluator.jsonSchema(validJson, {
+      type: "object",
+      properties: {
+        id: { type: "string" } // id in validJson is a number!
+      }
+    });
+    expect(typeMismatch.passed).toBe(false);
+    expect(typeMismatch.reason).toContain("must be string");
+
+    // Fails on enum violation
+    const enumMismatch = DeterministicEvaluator.jsonSchema(validJson, {
+      type: "object",
+      properties: {
+        status: { enum: ["archived", "deleted"] }
+      }
+    });
+    expect(enumMismatch.passed).toBe(false);
   });
 
   it("evaluates forbidden terms", () => {

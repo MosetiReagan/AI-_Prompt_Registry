@@ -2,6 +2,10 @@
   "name": "@ai-prompt-registry/core",
   "version": "1.0.0",
   "description": "Core domain models, rendering engine, evaluators, diffing, and policies for AI Prompt Registry",
+  "author": {
+    "name": "Reagan Moseti",
+    "url": "https://www.linkedin.com/in/reagan-moseti-1a8380238/"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
     "semver": "^7.6.3",
     "yaml": "^2.7.0",
     "zod": "^3.24.1"

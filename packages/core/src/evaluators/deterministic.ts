@@ -1,4 +1,5 @@
 import { TestCase, TestResult } from "../types/models.js";
+import Ajv from "ajv";
 
 export interface EvaluationCriterionResult {
   type: string;
@@ -139,24 +140,29 @@ export class DeterministicEvaluator {
   }
 
   /**
-   * 5. JSON Schema Validation Evaluator
+   * 5. JSON Schema Validation Evaluator (Ajv)
    */
   static jsonSchema(output: string, schema: Record<string, any>): EvaluationCriterionResult {
     try {
       const cleaned = output.replace(/```json\s*([\s\S]*?)\s*```/i, "$1").trim();
       const parsed = JSON.parse(cleaned);
 
-      // Check required fields from schema if specified
-      if (schema.required && Array.isArray(schema.required)) {
-        const missing = schema.required.filter((field: string) => !(field in parsed));
-        if (missing.length > 0) {
-          return {
-            type: "json_schema",
-            passed: false,
-            score: 0.5,
-            reason: `JSON missing required properties: ${missing.join(", ")}`
-          };
-        }
+      const AjvClass = (Ajv as any).default || Ajv;
+      const ajv = new AjvClass({ allErrors: true, strict: false });
+      const validate = ajv.compile(schema);
+      const valid = validate(parsed);
+
+      if (!valid) {
+        const errorDetails = (validate.errors || [])
+          .map((err: any) => `${err.instancePath || "/"} ${err.message}`)
+          .join("; ");
+
+        return {
+          type: "json_schema",
+          passed: false,
+          score: 0.0,
+          reason: `JSON failed schema validation: ${errorDetails}`
+        };
       }
 
       return {
@@ -170,7 +176,7 @@ export class DeterministicEvaluator {
         type: "json_schema",
         passed: false,
         score: 0.0,
-        reason: `JSON schema validation failed: ${err.message}`
+        reason: `JSON schema validation error: ${err.message}`
       };
     }
   }
