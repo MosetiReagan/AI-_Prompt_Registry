@@ -96,6 +96,7 @@ export class PolicyEngine {
     context?: {
       latestEvaluation?: Evaluation | null;
       approvedApproval?: Approval | null;
+      isProtected?: boolean;
     }
   ): PolicyCheckResult {
     const rules = policy?.rules || {
@@ -112,15 +113,15 @@ export class PolicyEngine {
     };
 
     const violations: Array<{ rule: string; message: string; severity: "error" | "warning" }> = [];
-    const isProd = targetEnv.toLowerCase() === "production";
+    const isProtected = context?.isProtected === true || targetEnv.toLowerCase() === "production";
 
-    if (isProd && rules.production) {
+    if (isProtected && rules.production) {
       // 1. Require evaluation
       if (rules.production.requireEvaluation) {
         if (!context?.latestEvaluation) {
           violations.push({
             rule: "production.requireEvaluation",
-            message: "Promotion to production requires a successful evaluation run.",
+            message: `Promotion to protected environment '${targetEnv}' requires a successful evaluation run.`,
             severity: "error"
           });
         } else {
@@ -133,7 +134,7 @@ export class PolicyEngine {
           if (!hasRealAssertions) {
             violations.push({
               rule: "production.requireRealTestCases",
-              message: "Promotion to production requires an evaluation with real assertions, not an empty auto-generated test case.",
+              message: `Promotion to protected environment '${targetEnv}' requires an evaluation with real assertions, not an empty auto-generated test case.`,
               severity: "error"
             });
           }
@@ -154,7 +155,7 @@ export class PolicyEngine {
         if (!context?.approvedApproval || context.approvedApproval.status !== "approved") {
           violations.push({
             rule: "production.requireApproval",
-            message: "Production deployment requires an approved review before promotion.",
+            message: `Deployment to protected environment '${targetEnv}' requires an approved review before promotion.`,
             severity: "error"
           });
         }

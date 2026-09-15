@@ -108,4 +108,21 @@ describe("Prompt Regression Testing", () => {
     expect(res.allowed).toBe(false);
     expect(res.violations.some((v: any) => v.rule === "production.requireRealTestCases")).toBe(true);
   });
+
+  it("enforces policy gates when custom environment isProtected is true", async () => {
+    const { PolicyEngine } = await import("@ai-prompt-registry/core");
+    // Attempting to promote to a custom environment "canary" without evaluation
+    // 1. When not protected, it is allowed
+    const unprot = PolicyEngine.checkPromotion("canary", { id: "pv_1", version: "1.0.0" } as any, null, {
+      isProtected: false
+    });
+    expect(unprot.allowed).toBe(true);
+
+    // 2. When isProtected: true, gates are strictly enforced
+    const prot = PolicyEngine.checkPromotion("canary", { id: "pv_1", version: "1.0.0" } as any, null, {
+      isProtected: true
+    });
+    expect(prot.allowed).toBe(false);
+    expect(prot.violations.some((v: any) => v.rule === "production.requireEvaluation")).toBe(true);
+  });
 });

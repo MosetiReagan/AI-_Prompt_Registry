@@ -77,7 +77,8 @@ export function registerEnvironmentRoutes(app: FastifyInstance, storage: IRegist
 
     const check = PolicyEngine.checkPromotion(environment, verObj, policy, {
       latestEvaluation: latestEval,
-      approvedApproval: approved
+      approvedApproval: approved,
+      isProtected: targetEnv.isProtected
     });
 
     if (!check.allowed) {

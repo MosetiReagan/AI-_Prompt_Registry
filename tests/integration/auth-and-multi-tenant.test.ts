@@ -281,5 +281,58 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
       setStorage(storage);
     }
   });
+
+  it("enforces promotion policy gates when environment isProtected is true", async () => {
+    // 1. Create a custom protected environment: "canary-prod"
+    await storage.createEnvironment({
+      id: "env-canary-prod",
+      organizationId: "org-a",
+      name: "canary-prod",
+      description: "Protected canary environment",
+      isProtected: true,
+      createdAt: new Date().toISOString()
+    });
+
+    // 2. Create prompt and published version without evaluation
+    const p = await storage.createPrompt({
+      id: "prompt-prot-test",
+      organizationId: "org-a",
+      name: "prot-test-prompt",
+      description: "Testing protected env gates",
+      tags: [],
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    await storage.createPromptVersion({
+      id: "pv-prot-1",
+      promptId: p.id,
+      version: "1.0.0",
+      content: { template: "Hello world" },
+      variablesSchema: {},
+      format: "text",
+      checksum: "chk123",
+      lifecycleState: "published",
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      createdBy: "admin"
+    });
+
+    // 3. Attempt promotion to canary-prod (without evaluation)
+    const promoteRes = await app.inject({
+      method: "POST",
+      url: `/v1/prompts/${p.name}/promote`,
+      headers: { ...adminHeaders, "x-organization-id": "org-a" },
+      payload: {
+        version: "1.0.0",
+        environment: "canary-prod"
+      }
+    });
+
+    expect(promoteRes.statusCode).toBe(422);
+    expect(promoteRes.json().code).toBe("POLICY_PROMOTION_BLOCKED");
+    expect(promoteRes.json().violations.some((v: any) => v.rule === "production.requireEvaluation")).toBe(true);
+  });
 });
 
