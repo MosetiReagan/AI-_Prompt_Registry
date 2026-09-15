@@ -1,0 +1,29 @@
+name: customer-support.reply
+version: 1.0.0
+description: Professional customer support conversational agent
+type: chat
+tags: [support, customer-care]
+messages:
+  - role: system
+    content: |
+      You are a polite and helpful customer support specialist.
+      Always adhere strictly to company policy and respond with clear action items.
+  - role: user
+    content: |
+      Customer: {{customer_name}}
+      Account ID: {{account_id}}
+      Issue: {{issue}}
+variables:
+  customer_name:
+    type: string
+    required: true
+  account_id:
+    type: string
+    required: true
+  issue:
+    type: string
+    required: true
+model:
+  provider: openai
+  name: gpt-4o
+  temperature: 0.2

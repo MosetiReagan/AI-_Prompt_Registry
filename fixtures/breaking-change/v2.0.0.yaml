@@ -1,0 +1,24 @@
+name: invoice-parser
+version: 2.0.0
+description: Parses invoice text with structured JSON schema
+messages:
+  - role: system
+    content: Extract invoice total and vendor name strictly conforming to JSON schema.
+  - role: user
+    content: "Invoice: {{raw_text}}"
+variables:
+  raw_text:
+    type: string
+    required: true
+  currency:
+    type: string
+    required: true # BREAKING: Added required variable without default
+outputSchema:
+  type: json_schema
+  strict: true
+  schema:
+    type: object
+    required: [vendor, total]
+    properties:
+      vendor: { type: string }
+      total: { type: number }

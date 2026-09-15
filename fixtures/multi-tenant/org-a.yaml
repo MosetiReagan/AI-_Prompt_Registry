@@ -1,0 +1,8 @@
+name: secure-prompt
+version: 1.0.0
+description: Org A isolated prompt
+template: "Org A confidential message: {{message}}"
+variables:
+  message:
+    type: string
+    required: true

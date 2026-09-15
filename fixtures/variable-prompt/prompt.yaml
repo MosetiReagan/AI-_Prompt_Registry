@@ -1,0 +1,27 @@
+name: report-generator
+version: 1.0.0
+description: Generates executive summaries with diverse variable types
+type: text
+template: |
+  Report Title: {{title}}
+  Fiscal Year: {{fiscal_year}}
+  Confidential: {{is_confidential}}
+  Key Metrics: {{metrics}}
+  Stakeholders: {{stakeholders}}
+variables:
+  title:
+    type: string
+    required: true
+  fiscal_year:
+    type: number
+    required: true
+  is_confidential:
+    type: boolean
+    required: true
+    default: true
+  metrics:
+    type: json
+    required: false
+  stakeholders:
+    type: array
+    required: false

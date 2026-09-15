@@ -1,0 +1,12 @@
+name: invoice-parser
+version: 1.0.0
+description: Parses invoice text
+messages:
+  - role: system
+    content: Extract invoice total and vendor name.
+  - role: user
+    content: "Invoice: {{raw_text}}"
+variables:
+  raw_text:
+    type: string
+    required: true

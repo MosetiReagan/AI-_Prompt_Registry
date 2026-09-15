@@ -1,0 +1,21 @@
+{
+  "name": "@ai-prompt-registry/mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for AI Prompt Registry",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "prompt-registry-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-prompt-registry/core": "workspace:*",
+    "@ai-prompt-registry/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
+}

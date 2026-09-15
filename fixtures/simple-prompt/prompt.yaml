@@ -1,0 +1,10 @@
+name: simple-greeting
+version: 1.0.0
+description: A basic plain text greeting prompt
+type: text
+template: "Hello {{name}}, welcome to our platform!"
+variables:
+  name:
+    type: string
+    required: true
+    description: User's name

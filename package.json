@@ -1,0 +1,25 @@
+{
+  "name": "ai-prompt-registry-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Open-source infrastructure for versioning, testing, deploying, and managing AI prompts",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "pnpm -r typecheck",
+    "dev:api": "pnpm --filter @ai-prompt-registry/api dev",
+    "dev:dashboard": "pnpm --filter @ai-prompt-registry/dashboard dev",
+    "cli": "pnpm --filter @ai-prompt-registry/cli cli"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@10.23.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
