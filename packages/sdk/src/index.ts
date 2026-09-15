@@ -16,6 +16,9 @@ export interface RegistryClientOptions {
   cacheTtlMs?: number; // Default 30,000ms for environment/alias resolutions
   headers?: Record<string, string>;
   fetch?: typeof fetch;
+  timeoutMs?: number; // Default 10,000ms
+  maxRetries?: number; // Default 3
+  retryInitialDelayMs?: number; // Default 100ms
 }
 
 interface CacheEntry<T> {
@@ -35,12 +38,17 @@ export class PromptRegistryError extends Error {
   }
 }
 
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
 export class PromptRegistry {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly cacheTtlMs: number;
   private readonly customHeaders: Record<string, string>;
   private readonly fetchFn: typeof fetch;
+  private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryInitialDelayMs: number;
 
   // In-memory cache: key -> { data, expiresAt }
   private readonly cache = new Map<string, CacheEntry<any>>();
@@ -51,10 +59,13 @@ export class PromptRegistry {
     this.cacheTtlMs = options.cacheTtlMs ?? 30_000;
     this.customHeaders = options.headers || {};
     this.fetchFn = options.fetch || globalThis.fetch;
+    this.timeoutMs = options.timeoutMs ?? 10_000;
+    this.maxRetries = options.maxRetries ?? 3;
+    this.retryInitialDelayMs = options.retryInitialDelayMs ?? 100;
   }
 
   /**
-   * Helper to perform HTTP requests
+   * Helper to perform HTTP requests with timeout and exponential backoff retry
    */
   private async request<T>(
     endpoint: string,
@@ -64,33 +75,87 @@ export class PromptRegistry {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...this.customHeaders,
-      ...(options.headers as Record<string, string> || {})
+      ...((options.headers as Record<string, string>) || {})
     };
 
     if (this.apiKey) {
       headers["Authorization"] = `Bearer ${this.apiKey}`;
     }
 
-    const response = await this.fetchFn(url, {
-      ...options,
-      headers
-    });
+    let lastError: any = null;
+    const maxRetries = this.maxRetries;
 
-    if (!response.ok) {
-      let errBody: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let signal = options.signal;
+      let timeoutSignal: AbortSignal | undefined;
+
       try {
-        errBody = await response.json();
-      } catch {
-        errBody = { message: response.statusText };
+        if (typeof AbortSignal.timeout === "function") {
+          timeoutSignal = AbortSignal.timeout(this.timeoutMs);
+          if (signal) {
+            if (typeof (AbortSignal as any).any === "function") {
+              signal = (AbortSignal as any).any([signal, timeoutSignal]);
+            }
+          } else {
+            signal = timeoutSignal;
+          }
+        }
+      } catch {}
+
+      try {
+        const response = await this.fetchFn(url, {
+          ...options,
+          headers,
+          signal
+        });
+
+        if (!response.ok) {
+          let errBody: any;
+          try {
+            errBody = await response.json();
+          } catch {
+            errBody = { message: response.statusText };
+          }
+
+          const error = new PromptRegistryError(
+            errBody.message || `API request failed with status ${response.status}`,
+            response.status,
+            errBody.code
+          );
+
+          // Retry on 5xx server errors
+          if (response.status >= 500 && attempt < maxRetries) {
+            lastError = error;
+            const backoffMs = this.retryInitialDelayMs * Math.pow(2, attempt);
+            await sleep(backoffMs);
+            continue;
+          }
+
+          throw error;
+        }
+
+        return (await response.json()) as T;
+      } catch (err: any) {
+        if (err instanceof PromptRegistryError) {
+          throw err;
+        }
+
+        // Network error, timeout, or connection failure
+        lastError = err;
+        if (attempt < maxRetries) {
+          const backoffMs = this.retryInitialDelayMs * Math.pow(2, attempt);
+          await sleep(backoffMs);
+          continue;
+        }
+        throw new PromptRegistryError(
+          err.message || "Network request failed",
+          0,
+          err.name === "TimeoutError" ? "REQUEST_TIMEOUT" : "NETWORK_ERROR"
+        );
       }
-      throw new PromptRegistryError(
-        errBody.message || `API request failed with status ${response.status}`,
-        response.status,
-        errBody.code
-      );
     }
 
-    return response.json() as Promise<T>;
+    throw lastError || new PromptRegistryError("Request failed after retries", 0);
   }
 
   /**

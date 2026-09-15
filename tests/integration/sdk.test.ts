@@ -114,4 +114,80 @@ describe("TypeScript SDK Integration", () => {
     expect(headers["x-prompt-version"]).toBe("1.0.0");
     expect(headers["x-prompt-environment"]).toBe("production");
   });
+
+  it("retries on transient 5xx errors and succeeds upon recovery", async () => {
+    let callCount = 0;
+    const retryFetch: typeof fetch = async () => {
+      callCount++;
+      if (callCount < 3) {
+        return new Response(JSON.stringify({ message: "Service Unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify([{ id: "p1", name: "recovered-prompt" }]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    const retryClient = new PromptRegistry({
+      baseUrl: "http://localhost:3000",
+      fetch: retryFetch,
+      maxRetries: 3,
+      retryInitialDelayMs: 10
+    });
+
+    const result = await retryClient.listPrompts();
+    expect(callCount).toBe(3);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("recovered-prompt");
+  });
+
+  it("retries network failures and surfaces error when retries are exhausted", async () => {
+    let callCount = 0;
+    const failFetch: typeof fetch = async () => {
+      callCount++;
+      throw new Error("Connection reset by peer");
+    };
+
+    const failClient = new PromptRegistry({
+      baseUrl: "http://localhost:3000",
+      fetch: failFetch,
+      maxRetries: 2,
+      retryInitialDelayMs: 10
+    });
+
+    await expect(failClient.listPrompts()).rejects.toThrow("Connection reset by peer");
+    expect(callCount).toBe(3); // 1 initial + 2 retries
+  });
+
+  it("aborts when request exceeds timeoutMs", async () => {
+    const slowFetch: typeof fetch = async (_input, init) => {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          resolve(new Response("[]", { status: 200 }));
+        }, 500);
+
+        if (init?.signal) {
+          init.signal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            const err = new Error("The operation was aborted");
+            err.name = "TimeoutError";
+            reject(err);
+          });
+        }
+      });
+    };
+
+    const timeoutClient = new PromptRegistry({
+      baseUrl: "http://localhost:3000",
+      fetch: slowFetch,
+      timeoutMs: 50,
+      maxRetries: 1,
+      retryInitialDelayMs: 10
+    });
+
+    await expect(timeoutClient.listPrompts()).rejects.toThrow();
+  });
 });
