@@ -14,13 +14,13 @@ export async function getStorage(): Promise<IRegistryStorage> {
   const dbUrl = process.env.DATABASE_URL;
   if (dbUrl) {
     try {
-      // Dynamic import of pg only when DATABASE_URL is configured
-      const { default: pg } = await import("pg" as any);
+      const { default: pg } = await import("pg");
       const pool = new pg.Pool({ connectionString: dbUrl });
       activeStorage = new PostgresStorage(pool);
       return activeStorage;
     } catch (err) {
-      console.warn("Could not initialize PostgreSQL pool, falling back to in-memory storage:", err);
+      console.error("FATAL: DATABASE_URL is set but failed to initialize PostgreSQL storage:", err);
+      throw new Error(`Failed to initialize PostgreSQL storage from DATABASE_URL: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -28,6 +28,6 @@ export async function getStorage(): Promise<IRegistryStorage> {
   return activeStorage;
 }
 
-export function setStorage(storage: IRegistryStorage) {
+export function setStorage(storage: IRegistryStorage | null) {
   activeStorage = storage;
 }

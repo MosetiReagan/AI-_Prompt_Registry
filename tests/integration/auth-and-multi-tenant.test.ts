@@ -264,5 +264,22 @@ describe("Security, Scopes, and Multi-Tenant Isolation", () => {
     const orgAApprovals = await storage.listApprovals("org-a");
     expect(orgAApprovals.some(a => a.id === approval.id)).toBe(true);
   });
+
+  it("does not silently fall back to memory when DATABASE_URL is invalid", async () => {
+    const { getStorage, setStorage } = await import("../../apps/api/src/storage/index.js");
+    setStorage(null);
+    const originalDbUrl = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = "postgres://invalid-user:bad-pass@127.0.0.1:54399/nonexistent";
+
+    try {
+      // PostgresStorage pool query or connection error should throw or reject
+      const storageInstance = await getStorage();
+      // Verifying that it created PostgresStorage and not MemoryStorage
+      expect(storageInstance.constructor.name).toBe("PostgresStorage");
+    } finally {
+      process.env.DATABASE_URL = originalDbUrl;
+      setStorage(storage);
+    }
+  });
 });
 
