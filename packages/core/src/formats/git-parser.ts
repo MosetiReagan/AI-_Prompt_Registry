@@ -35,7 +35,25 @@ export const GitPromptFileSchema = z.object({
 export type GitPromptFile = z.infer<typeof GitPromptFileSchema>;
 
 /**
- * Computes deterministic SHA-256 checksum of prompt version content
+ * Recursively sorts all object keys alphabetically to guarantee canonical serialization
+ */
+export function sortKeysRecursively(obj: any): any {
+  if (obj === null || typeof obj !== "object") {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sortKeysRecursively);
+  }
+  const sortedKeys = Object.keys(obj).sort();
+  const sortedObj: Record<string, any> = {};
+  for (const key of sortedKeys) {
+    sortedObj[key] = sortKeysRecursively(obj[key]);
+  }
+  return sortedObj;
+}
+
+/**
+ * Computes deterministic SHA-256 checksum of prompt version content with canonically sorted keys
  */
 export function computePromptChecksum(payload: {
   name: string;
@@ -44,13 +62,14 @@ export function computePromptChecksum(payload: {
   variables: any;
   outputSchema?: any;
 }): string {
-  const normalized = JSON.stringify({
+  const canonicallySorted = sortKeysRecursively({
     name: payload.name,
     version: payload.version,
     template: payload.template,
     variables: payload.variables,
     outputSchema: payload.outputSchema || null
   });
+  const normalized = JSON.stringify(canonicallySorted);
   return createHash("sha256").update(normalized).digest("hex");
 }
 

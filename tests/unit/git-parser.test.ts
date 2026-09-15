@@ -60,4 +60,40 @@ model:
     expect(checksum1).toBe(checksum2);
     expect(checksum1).toHaveLength(64); // SHA-256 hex
   });
+
+  it("produces identical checksum regardless of nested object key insertion order", () => {
+    // Object with key order A -> B -> C
+    const payload1 = {
+      name: "order.test",
+      version: "2.0.0",
+      template: {
+        role: "system",
+        content: "Be helpful",
+        metadata: { alpha: 1, beta: 2, gamma: 3 }
+      },
+      variables: {
+        varA: { type: "string" as const, default: "A", required: true },
+        varB: { type: "number" as const, default: 10, required: false }
+      }
+    };
+
+    // Exactly equivalent object with reversed key order C -> B -> A and varB before varA
+    const payload2 = {
+      version: "2.0.0",
+      name: "order.test",
+      template: {
+        metadata: { gamma: 3, beta: 2, alpha: 1 },
+        content: "Be helpful",
+        role: "system"
+      },
+      variables: {
+        varB: { required: false, default: 10, type: "number" as const },
+        varA: { required: true, default: "A", type: "string" as const }
+      }
+    };
+
+    const hash1 = computePromptChecksum(payload1);
+    const hash2 = computePromptChecksum(payload2);
+    expect(hash1).toBe(hash2);
+  });
 });
