@@ -12,7 +12,24 @@ export type CustomEvaluatorFn = (
   context: { testCase: TestCase; variables: Record<string, any> }
 ) => Promise<EvaluationCriterionResult> | EvaluationCriterionResult;
 
+export function isSafeRegex(pattern: string): { safe: boolean; reason?: string } {
+  if (pattern.length > 500) {
+    return { safe: false, reason: `Pattern length (${pattern.length}) exceeds maximum allowed 500 characters` };
+  }
+  // Check for nested quantifiers like (a+)+, (a*)*, (a|b+)+, (.+)*, (a{1,5})+
+  const nestedQuantifiers = /\([^)]*(\+|\*|\{\d+,?\d*\})\)[+*?{]/;
+  if (nestedQuantifiers.test(pattern)) {
+    return { safe: false, reason: "Pattern contains dangerous nested quantifiers susceptible to catastrophic backtracking (ReDoS)" };
+  }
+  const overlappingWildcards = /(\.\*|\.\+)[+*]/;
+  if (overlappingWildcards.test(pattern)) {
+    return { safe: false, reason: "Pattern contains overlapping repeated wildcards susceptible to catastrophic backtracking (ReDoS)" };
+  }
+  return { safe: true };
+}
+
 export class DeterministicEvaluator {
+  static isSafeRegex = isSafeRegex;
   /**
    * 1. Exact Match Evaluator
    */
@@ -63,10 +80,21 @@ export class DeterministicEvaluator {
     };
   }
 
+
   /**
    * 3. Regex Pattern Evaluator
    */
   static regex(output: string, pattern: string, flags: string = ""): EvaluationCriterionResult {
+    const safety = isSafeRegex(pattern);
+    if (!safety.safe) {
+      return {
+        type: "regex",
+        passed: false,
+        score: 0.0,
+        reason: `Regex pattern rejected: ${safety.reason}`
+      };
+    }
+
     try {
       const re = new RegExp(pattern, flags);
       const passed = re.test(output);

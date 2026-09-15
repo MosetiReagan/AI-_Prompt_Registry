@@ -39,4 +39,32 @@ describe("Security, Secret Detection, and Prompt Injection Awareness", () => {
     expect(audit.injectionRisks.length).toBeGreaterThan(0);
     expect(audit.injectionRisks).toContain("Instruction override attempt");
   });
+
+  it("prevents ReDoS vulnerabilities by rejecting dangerous nested quantifiers and oversized patterns", async () => {
+    const { isSafeRegex, DeterministicEvaluator } = await import("@ai-prompt-registry/core");
+
+    // Safe pattern passes
+    const safe = isSafeRegex("^[a-zA-Z0-9_-]+$");
+    expect(safe.safe).toBe(true);
+
+    // Dangerous nested quantifiers
+    const redos1 = isSafeRegex("^(a+)+$");
+    expect(redos1.safe).toBe(false);
+    expect(redos1.reason).toContain("ReDoS");
+
+    const redos2 = isSafeRegex("(.*)+");
+    expect(redos2.safe).toBe(false);
+
+    // Oversized pattern
+    const hugePattern = "a".repeat(501);
+    const oversized = isSafeRegex(hugePattern);
+    expect(oversized.safe).toBe(false);
+    expect(oversized.reason).toContain("exceeds maximum");
+
+    // DeterministicEvaluator rejects unsafe pattern gracefully without hanging
+    const evalRes = DeterministicEvaluator.regex("aaaaaaaaaaaaaaaaaaaaX", "^(a+)+$");
+    expect(evalRes.passed).toBe(false);
+    expect(evalRes.score).toBe(0.0);
+    expect(evalRes.reason).toContain("ReDoS");
+  });
 });

@@ -1,5 +1,7 @@
 import fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import { IRegistryStorage } from "./storage/interface.js";
 import { getStorage } from "./storage/index.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -22,9 +24,25 @@ export async function buildServer(options: { storage?: IRegistryStorage; logger?
     logger: options.logger ?? false
   });
 
-  // Enable CORS
+  // Register Security Headers (Helmet)
+  await app.register(helmet, {
+    contentSecurityPolicy: false
+  });
+
+  // Register Rate Limiter
+  await app.register(rateLimit, {
+    max: parseInt(process.env.RATE_LIMIT_MAX || "1000", 10),
+    timeWindow: process.env.RATE_LIMIT_WINDOW || "1 minute"
+  });
+
+  // Enable CORS with configurable allowlist
+  const corsOrigin = process.env.CORS_ORIGIN;
+  const origin = corsOrigin
+    ? (corsOrigin.includes(",") ? corsOrigin.split(",").map(s => s.trim()) : corsOrigin)
+    : "*";
+
   await app.register(cors, {
-    origin: "*",
+    origin,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
   });
 

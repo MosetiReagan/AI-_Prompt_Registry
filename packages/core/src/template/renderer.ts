@@ -1,4 +1,5 @@
 import { ChatMessage, VariableDefinition, VariableType } from "../types/models.js";
+import { isSafeRegex } from "../evaluators/deterministic.js";
 
 export interface RenderResult {
   rendered: string | ChatMessage[];
@@ -123,16 +124,24 @@ export function validateVariables(
 
     // Regex validation
     if (def.regex) {
-      try {
-        const re = new RegExp(def.regex);
-        if (!re.test(String(value))) {
-          errors.push({
-            name,
-            message: `Variable '${name}' failed pattern validation '${def.regex}'`
-          });
+      const safety = isSafeRegex(def.regex);
+      if (!safety.safe) {
+        errors.push({
+          name,
+          message: `Variable '${name}' regex rejected: ${safety.reason}`
+        });
+      } else {
+        try {
+          const re = new RegExp(def.regex);
+          if (!re.test(String(value))) {
+            errors.push({
+              name,
+              message: `Variable '${name}' failed pattern validation '${def.regex}'`
+            });
+          }
+        } catch {
+          // Invalid regex in definition
         }
-      } catch {
-        // Invalid regex in definition
       }
     }
   }
